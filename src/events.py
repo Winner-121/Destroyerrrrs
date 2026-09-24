@@ -1,0 +1,274 @@
+"""Rules: tracks + scene layout + signal state  ->  per-frame flags  ->  event segments.
+
+Input tracks are rows [t, id, cls, conf, x1, y1, x2, y2] in working-frame pixels,
+sampled every `stride` frames. COCO classes: 0 person, 1 bicycle, 2 car,
+3 motorcycle, 5 bus, 7 truck.
+"""
+from __future__ import annotations
+
+from collections import defaultdict
+
+import numpy as np
+
+PERSON, BICYCLE, CAR, MOTORCYCLE, BUS, TRUCK = 0, 1, 2, 3, 5, 7
+VEHICLES = {CAR, MOTORCYCLE, BUS, TRUCK}
+
+
+# ----------------------------------------------------------------------------- helpers
+def group_tracks(rows):
+    """-> {id: (t[], cls, cx[], cy_bottom[], w[], h[], conf[])} sorted by time."""
+    tr = defaultdict(list)
+    for t, i, c, cf, x1, y1, x2, y2 in rows:
+        tr[int(i)].append((float(t), int(c), (x1 + x2) / 2, float(y2), x2 - x1, y2 - y1, float(cf)))
+    out = {}
+    for i, p in tr.items():
+        p.sort()
+        a = np.array(p, dtype=np.float64)
+        cls = int(np.bincount(a[:, 1].astype(int)).argmax())  # majority class
+        out[i] = dict(t=a[:, 0], cls=cls, cx=a[:, 2], cy=a[:, 3], w=a[:, 4], h=a[:, 5], conf=a[:, 6])
+    return out
+
+
+def flags_to_segments(times, flags, min_dur=0.5, max_gap=1.0):
+    """Boolean flags at sample times -> [(start, end)], gaps <= max_gap merged, short ones dropped."""
+    segs = []
+    start = None
+    last_true = None
+    for t, f in zip(times, flags):
+        if f:
+            if start is None:
+                start = t
+            elif last_true is not None and t - last_true > max_gap:
+                segs.append((start, last_true))
+                start = t
+            last_true = t
+        # a False sample does not close the run; the gap rule does
+    if start is not None:
+        segs.append((start, last_true))
+    # merge again after per-track union
+    return [(s, e) for s, e in segs if e - s >= min_dur]
+
+
+def merge_intervals(segs, gap=0.0):
+    """Union of intervals (same class), merging ones closer than `gap`."""
+    segs = sorted(segs)
+    out = []
+    for s, e in segs:
+        if out and s <= out[-1][1] + gap:
+            out[-1][1] = max(out[-1][1], e)
+        else:
+            out.append([s, e])
+    return [(s, e) for s, e in out]
+
+
+def speed(track, k, win_s=1.0):
+    """Displacement speed (px/s) of the ground point around sample k."""
+    t, cx, cy = track["t"], track["cx"], track["cy"]
+    j = k
+    while j + 1 < len(t) and t[j + 1] - t[k] <= win_s:
+        j += 1
+    i = k
+    while i - 1 >= 0 and t[k] - t[i - 1] <= win_s:
+        i -= 1
+    dt = t[j] - t[i]
+    if dt <= 0:
+        return 0.0
+    return float(np.hypot(cx[j] - cx[i], cy[j] - cy[i]) / dt)
+
+
+# ----------------------------------------------------------------------------- rules
+class RuleEngine:
+    def __init__(self, scene, fps: float, stride: int):
+        self.sc = scene
+        self.fps = fps
+        self.dt = stride / fps
+        # thresholds in reference-720p pixels, scaled to the working frame
+        s = scene.sx
+        self.still_px_s = 6.0 * s          # below this ground speed a vehicle is 'stopped'
+        self.min_track_s = 1.0
+
+    # --- jaywalking: pedestrian on the carriageway outside any crossing / island -----
+    def jaywalking(self, tracks, signal_by_t=None):
+        # vehicle boxes per time, to drop 'person' detections that are riders / passengers
+        veh_at = defaultdict(list)
+        for tr in tracks.values():
+            if tr["cls"] in VEHICLES or tr["cls"] == BICYCLE:
+                for t, x, yb, w, h in zip(tr["t"], tr["cx"], tr["cy"], tr["w"], tr["h"]):
+                    veh_at[round(t, 2)].append((x - w / 2, yb - h, x + w / 2, yb))
+        per_track = []
+        for tr in tracks.values():
+            if tr["cls"] != PERSON or tr["t"][-1] - tr["t"][0] < self.min_track_s:
+                continue
+            fl = []
+            for t, x, y, w, h in zip(tr["t"], tr["cx"], tr["cy"], tr["w"], tr["h"]):
+                on = self.sc.road_margin(x, y) > 14 * self.sc.sx and not self.sc.in_parked(x, y)
+                if on:  # inside a vehicle/bicycle box -> rider or passenger, not a pedestrian
+                    cy = y - h / 2
+                    for x1, y1, x2, y2 in veh_at.get(round(t, 2), ()):
+                        if x1 <= x <= x2 and y1 <= cy <= y2 and (x2 - x1) < 4 * w:
+                            on = False
+                            break
+                fl.append(on)
+            for s_, e_ in flags_to_segments(tr["t"], fl, min_dur=2.0, max_gap=1.0):
+                k0, k1 = int(np.searchsorted(tr["t"], s_)), int(np.searchsorted(tr["t"], e_))
+                path = float(np.hypot(np.diff(tr["cx"][k0:k1 + 1]), np.diff(tr["cy"][k0:k1 + 1])).sum())
+                if path >= 40 * self.sc.sx:  # a pedestrian who actually walks, not a static false detection
+                    per_track.append((s_, e_))
+        return merge_intervals(per_track, gap=1.0)
+
+    # --- stopped vehicle: stationary >= 10 s on the road, not queued at a signal -----
+    def stopped_vehicle(self, tracks, signal_by_t):
+        """Queue handling: a vehicle stopped upstream of the near stop line while the
+        near signal is not green (or within 20 s after it turned green) is a queue.
+        Elsewhere on the road, other directions may also queue for signals we cannot
+        see, so outside the intersection box we require >= 60 s (longer than a full
+        red phase); inside the box / on a zebra 10 s is enough."""
+        segs = []
+        green_starts = self._phase_starts(signal_by_t, "green")
+        for tr in tracks.values():
+            if tr["cls"] not in VEHICLES or tr["t"][-1] - tr["t"][0] < 10:
+                continue
+            n = len(tr["t"])
+            still = np.array([speed(tr, k) < self.still_px_s for k in range(n)])
+            xs, ys, ts = tr["cx"], tr["cy"], tr["t"]
+            onroad = np.array([self.sc.on_road(x, y) and not self.sc.in_parked(x, y) for x, y in zip(xs, ys)])
+            inbox = np.array([(self.sc.in_box(x, y) or self.sc.in_main_zebra(x, y)) and not self.sc.in_side_mouth(x, y) for x, y in zip(xs, ys)])
+            upstream = np.array([self.sc.in_upstream(x, y) and self.sc.past_stop_line(x, y) < 0 for x, y in zip(xs, ys)])
+            queued = np.array([u and (signal_by_t(t) != "green" or self._since(green_starts, t) < 20) for u, t in zip(upstream, ts)])
+            fl = still & onroad & ~queued
+            moved_any = (~still).any()
+            for s_, e_ in flags_to_segments(ts, fl, min_dur=10.0, max_gap=1.5):
+                k0 = int(np.searchsorted(ts, s_)); k1 = int(np.searchsorted(ts, e_))
+                frac_box = inbox[k0:k1 + 1].mean() if k1 >= k0 else 0
+                need = 10.0 if frac_box > 0.5 else 60.0
+                # a vehicle that never moves in the whole clip outside the intersection is parked
+                # scenery (kerb lane at the bus stop), not an event we can bound in time
+                if frac_box <= 0.5 and not moved_any:
+                    continue
+                if e_ - s_ >= need:
+                    segs.append((s_, e_))
+        return merge_intervals(segs, gap=0.5)
+
+    @staticmethod
+    def _phase_starts(signal_by_t, state, t_max=7200, step=0.1):
+        starts, prev, t = [], None, 0.0
+        while t < t_max:
+            s = signal_by_t(t)
+            if s == state and prev != state:
+                starts.append(t)
+            prev = s
+            t += step
+            if t > 5 and s == "unknown" and prev == "unknown" and not starts and t > 600:
+                break
+        return np.array(starts)
+
+    @staticmethod
+    def _since(starts, t):
+        if len(starts) == 0:
+            return 1e9
+        k = int(np.searchsorted(starts, t)) - 1
+        return t - starts[k] if k >= 0 else 1e9
+
+    # --- stop line: vehicle stopped past the stop line (front on the zebra) on red -----
+    def stop_line(self, tracks, signal_by_t):
+        segs = []
+        for tr in tracks.values():
+            if tr["cls"] not in VEHICLES:
+                continue
+            fl = []
+            for k in range(len(tr["t"])):
+                x, y, t = tr["cx"][k], tr["cy"][k], tr["t"][k]
+                d = self.sc.past_stop_line(x, y)
+                past = 8 * self.sc.sx < d < 60 * self.sc.sx  # clearly over the bar, not through the zebra
+                fl.append(past and speed(tr, k) < self.still_px_s and signal_by_t(t) == "red" and self.sc.in_approach_or_zebra(x, y))
+            for s_, e_ in flags_to_segments(tr["t"], fl, min_dur=3.0, max_gap=1.5):
+                segs.append((s_, e_))
+        return merge_intervals(segs, gap=1.0)
+
+    # --- red light: crosses the stop line on red and clears the zebra promptly -----
+    def red_light(self, tracks, signal_by_t):
+        segs = []
+        far = 60 * self.sc.sx
+        for tr in tracks.values():
+            if tr["cls"] not in VEHICLES:
+                continue
+            xs, ys, ts = tr["cx"], tr["cy"], tr["t"]
+            d = np.array([self.sc.past_stop_line(x, y) for x, y in zip(xs, ys)])
+            inapp = np.array([self.sc.in_approach(x, y) for x, y in zip(xs, ys)])
+            for k in range(1, len(d)):
+                if not (inapp[k - 1] and d[k - 1] <= 0 < d[k]):
+                    continue
+                t = ts[k]
+                if not (signal_by_t(t) == "red" and signal_by_t(t - 1.5) == "red" and signal_by_t(t + 1.0) == "red"):
+                    continue
+                if speed(tr, k) < 2 * self.still_px_s:
+                    continue
+                later = np.where(d[k:] > far)[0]
+                if len(later) == 0 or ts[k + later[0]] - t > 4.0:
+                    continue  # crept onto the zebra and waited: that is stop_line, not red_light
+                j = k + later[0]
+                end = min(ts[-1], ts[j] + 1.5)
+                segs.append((t, end))
+                break
+        return merge_intervals(segs, gap=0.5)
+
+    # --- failure to yield: vehicle crosses the main zebra near a pedestrian who is on it -----
+    def failure_to_yield(self, tracks, signal_by_t):
+        peds = defaultdict(list)  # t -> [(x, y)]
+        for tr in tracks.values():
+            if tr["cls"] != PERSON:
+                continue
+            for t, x, y in zip(tr["t"], tr["cx"], tr["cy"]):
+                if self.sc.in_main_zebra(x, y) and self.sc.on_road(x, y):
+                    peds[round(t, 2)].append((x, y))
+        near = 220 * self.sc.sx
+        segs = []
+        for tr in tracks.values():
+            if tr["cls"] not in VEHICLES:
+                continue
+            fl = []
+            for k, (t, x, y) in enumerate(zip(tr["t"], tr["cx"], tr["cy"])):
+                ok = self.sc.in_main_zebra(x, y) and speed(tr, k) > 1.5 * self.still_px_s
+                if ok:
+                    ok = any(np.hypot(px - x, py - y) < near for px, py in peds.get(round(t, 2), ()))
+                fl.append(ok)
+            segs += flags_to_segments(tr["t"], fl, min_dur=0.6, max_gap=1.0)
+        return merge_intervals(segs, gap=1.0)
+
+    # --- wrong way: heading opposite the learned flow for > 3 s, outside the intersection box -----
+    def wrong_way(self, tracks, signal_by_t):
+        segs = []
+        for tr in tracks.values():
+            if tr["cls"] not in VEHICLES or len(tr["t"]) < 8:
+                continue
+            fl = []
+            for k in range(len(tr["t"])):
+                j = min(len(tr["t"]) - 1, k + max(1, int(1.0 / self.dt)))
+                dx, dy = tr["cx"][j] - tr["cx"][k], tr["cy"][j] - tr["cy"][k]
+                L = float(np.hypot(dx, dy))
+                x, y = tr["cx"][k], tr["cy"][k]
+                if L < 2 * self.still_px_s or self.sc.in_box(x, y) or not self.sc.on_road(x, y):
+                    fl.append(False)
+                    continue
+                u, coh, cnt = self.sc.flow_at(x, y)
+                fl.append(coh > 0.85 and cnt > 60 and float(u @ np.array([dx, dy]) / L) < -0.8)
+            segs += flags_to_segments(tr["t"], fl, min_dur=3.0, max_gap=1.0)
+        return merge_intervals(segs, gap=1.0)
+
+    def run(self, rows, signal_by_t, classes=None):
+        tracks = group_tracks(rows)
+        rules = {
+            "jaywalking": self.jaywalking,
+            "stopped_vehicle": self.stopped_vehicle,
+            "stop_line": self.stop_line,
+            "red_light": self.red_light,
+            "failure_to_yield": self.failure_to_yield,
+            "wrong_way": self.wrong_way,
+        }
+        events = []
+        for name, fn in rules.items():
+            if classes and name not in classes:
+                continue
+            for s, e in fn(tracks, signal_by_t):
+                events.append([round(float(s), 2), round(float(e), 2), name])
+        return sorted(events)

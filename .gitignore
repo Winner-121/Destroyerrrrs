@@ -1,0 +1,19 @@
+# data and heavy artefacts never go to git
+Samples/
+Samples_one/
+work/
+*.MP4
+*.mp4
+*.pdf
+.venv/
+__pycache__/
+*.pyc
+.install_torch.log
+weights/*.pt
+weights/*.onnx
+weights/*.engine
+labels/*.json
+!labels/my_labels.json
+!labels/notes.json
+wiut_cv_scripts/__MACOSX/
+.DS_Store

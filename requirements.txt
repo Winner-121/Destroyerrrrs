@@ -1,0 +1,10 @@
+# Python 3.10+ ; tested with 3.11
+numpy>=1.24
+opencv-python-headless>=4.8
+# PyTorch: install the CUDA build for your driver first if the default wheel does not see the GPU, e.g.
+#   pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128
+torch>=2.3
+torchvision>=0.18
+ultralytics>=8.3
+lap>=0.4
+scipy>=1.10

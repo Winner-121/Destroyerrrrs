@@ -1,0 +1,380 @@
+{
+ "reference_size": [
+  1280,
+  720
+ ],
+ "note": "All coordinates in 1280x720 proxy pixels; scale by (W/1280, H/720) for other resolutions. Camera is fixed.",
+ "zebra_main": [
+  [
+   232,
+   390
+  ],
+  [
+   1118,
+   324
+  ],
+  [
+   1118,
+   358
+  ],
+  [
+   212,
+   442
+  ]
+ ],
+ "zebra_bottom": [
+  [
+   128,
+   478
+  ],
+  [
+   262,
+   462
+  ],
+  [
+   640,
+   720
+  ],
+  [
+   400,
+   720
+  ]
+ ],
+ "islands": {
+  "median_far": [
+   [
+    150,
+    150
+   ],
+   [
+    760,
+    328
+   ],
+   [
+    760,
+    342
+   ],
+   [
+    150,
+    160
+   ]
+  ],
+  "ped_island": [
+   [
+    790,
+    350
+   ],
+   [
+    860,
+    345
+   ],
+   [
+    872,
+    380
+   ],
+   [
+    802,
+    386
+   ]
+  ],
+  "tri_top": [
+   [
+    340,
+    462
+   ],
+   [
+    500,
+    497
+   ],
+   [
+    345,
+    515
+   ]
+  ],
+  "tri_left": [
+   [
+    75,
+    612
+   ],
+   [
+    262,
+    563
+   ],
+   [
+    272,
+    606
+   ],
+   [
+    100,
+    632
+   ]
+  ],
+  "tri_right": [
+   [
+    450,
+    560
+   ],
+   [
+    585,
+    542
+   ],
+   [
+    640,
+    590
+   ],
+   [
+    465,
+    600
+   ]
+  ]
+ },
+ "stop_line_near": {
+  "p1": [
+   200,
+   355
+  ],
+  "p2": [
+   600,
+   282
+  ],
+  "note": "painted transverse bar from the near pole to the median"
+ },
+ "near_carriageway_approach": [
+  [
+   60,
+   300
+  ],
+  [
+   620,
+   230
+  ],
+  [
+   760,
+   330
+  ],
+  [
+   232,
+   390
+  ],
+  [
+   212,
+   442
+  ],
+  [
+   140,
+   355
+  ]
+ ],
+ "intersection_box": [
+  [
+   212,
+   442
+  ],
+  [
+   1118,
+   354
+  ],
+  [
+   1000,
+   330
+  ],
+  [
+   900,
+   480
+  ],
+  [
+   1050,
+   720
+  ],
+  [
+   625,
+   720
+  ],
+  [
+   258,
+   468
+  ]
+ ],
+ "signal_main": {
+  "red": [
+   771,
+   248
+  ],
+  "green": [
+   771,
+   271
+  ],
+  "radius": 3,
+  "controls": "near_carriageway",
+  "note": "far-pole head facing camera; washes out in direct sun"
+ },
+ "signal_left": {
+  "red": [
+   178,
+   328
+  ],
+  "green": [
+   178,
+   340
+  ],
+  "radius": 3,
+  "controls": "near_carriageway",
+  "note": "small head on near pole; same phase as signal_main; reliable in daylight"
+ },
+ "parked_zone": [
+  [
+   0,
+   240
+  ],
+  [
+   120,
+   240
+  ],
+  [
+   120,
+   345
+  ],
+  [
+   0,
+   345
+  ]
+ ],
+ "flow_field": "work/eda/flow_field.npz",
+ "road": [
+  [
+   0,
+   55
+  ],
+  [
+   480,
+   133
+  ],
+  [
+   700,
+   182
+  ],
+  [
+   860,
+   218
+  ],
+  [
+   1000,
+   252
+  ],
+  [
+   1150,
+   288
+  ],
+  [
+   1280,
+   320
+  ],
+  [
+   1280,
+   720
+  ],
+  [
+   0,
+   720
+  ],
+  [
+   0,
+   575
+  ],
+  [
+   130,
+   562
+  ],
+  [
+   145,
+   472
+  ],
+  [
+   262,
+   462
+  ],
+  [
+   232,
+   440
+  ],
+  [
+   145,
+   352
+  ],
+  [
+   0,
+   345
+  ]
+ ],
+ "road_note": "whole carriageway incl. side streets; islands/zebras/parked zone subtracted in code",
+ "reference_background": "reference_bg.jpg",
+ "near_carriageway_upstream": [
+  [
+   0,
+   105
+  ],
+  [
+   150,
+   150
+  ],
+  [
+   600,
+   282
+  ],
+  [
+   200,
+   355
+  ],
+  [
+   145,
+   352
+  ],
+  [
+   0,
+   345
+  ]
+ ],
+ "near_carriageway_upstream_note": "everything between the median and the left kerb upstream of the stop line; stationary vehicles here on red are a signal queue",
+ "zebra_side": [
+  [
+   1120,
+   298
+  ],
+  [
+   1280,
+   318
+  ],
+  [
+   1280,
+   372
+  ],
+  [
+   1112,
+   352
+  ]
+ ],
+ "zebra_side_note": "pedestrian crossing over the right side-street mouth (crossing sign at (1265,245)); not jaywalking",
+ "side_street_mouth": [
+  [
+   1000,
+   330
+  ],
+  [
+   1280,
+   372
+  ],
+  [
+   1280,
+   720
+  ],
+  [
+   1050,
+   720
+  ],
+  [
+   900,
+   480
+  ]
+ ],
+ "side_street_mouth_note": "vehicles from the right side street queue here waiting to enter; not stopped_vehicle unless very long"
+}

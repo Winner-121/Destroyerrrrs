@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>WIUT CV labelling</title>
+<style>
+  :root { --bg:#111; --fg:#eee; --mut:#999; --acc:#4cc9f0; --ok:#7bd88f; --warn:#f6c343; --bad:#ff6b6b; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:14px/1.4 system-ui, sans-serif; }
+  .wrap { display:grid; grid-template-columns: 1fr 380px; gap:12px; padding:12px; height:100vh; box-sizing:border-box; }
+  video { width:100%; background:#000; border-radius:6px; }
+  .left { display:flex; flex-direction:column; gap:8px; min-width:0; }
+  .right { display:flex; flex-direction:column; gap:8px; overflow:auto; }
+  .bar { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  button, select { background:#222; color:var(--fg); border:1px solid #444; border-radius:4px; padding:5px 9px; cursor:pointer; }
+  button:hover { border-color:var(--acc); }
+  button.primary { background:var(--acc); color:#000; font-weight:600; }
+  .time { font: 600 20px/1 ui-monospace, monospace; color:var(--acc); min-width:170px; }
+  .mark { font-family: ui-monospace, monospace; }
+  .mark b { color:var(--ok); }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  td, th { padding:4px 6px; border-bottom:1px solid #2a2a2a; text-align:left; }
+  tr:hover td { background:#1c1c1c; }
+  .chip { display:inline-block; padding:1px 6px; border-radius:10px; background:#2a2a2a; font-size:12px; }
+  .notes li { cursor:pointer; padding:3px 0; color:var(--mut); }
+  .notes li:hover { color:var(--fg); }
+  .notes li.done { text-decoration: line-through; opacity:.5; }
+  details { background:#181818; border-radius:6px; padding:6px 10px; }
+  summary { cursor:pointer; color:var(--acc); }
+  .def { font-size:12px; color:var(--mut); }
+  .def b { color:var(--fg); }
+  .timeline { position:relative; height:26px; background:#1a1a1a; border-radius:4px; overflow:hidden; cursor:crosshair; }
+  .timeline .ev { position:absolute; top:3px; height:20px; border-radius:3px; opacity:.85; }
+  .timeline .cur { position:absolute; top:0; width:2px; height:100%; background:#fff; }
+  .status { color:var(--mut); font-size:12px; }
+  kbd { background:#2a2a2a; border-radius:3px; padding:0 5px; font-family: ui-monospace, monospace; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="left">
+    <div class="bar">
+      <select id="vid"></select>
+      <span class="status">Tip: one person per video at a time.</span>
+      <span class="time" id="time">0:00.00</span>
+      <span class="status" id="status"></span>
+    </div>
+    <video id="v" preload="auto"></video>
+    <div class="timeline" id="tl"></div>
+    <div class="bar">
+      <button data-k="-30">-30s</button><button data-k="-5">-5s</button><button data-k="-1">-1s</button>
+      <button data-k="-f">◂ frame</button><button id="play" class="primary">play</button><button data-k="+f">frame ▸</button>
+      <button data-k="+1">+1s</button><button data-k="+5">+5s</button><button data-k="+30">+30s</button>
+      <select id="rate"><option>0.25</option><option>0.5</option><option selected>1</option><option>1.5</option><option>2</option><option>4</option></select>
+    </div>
+    <div class="bar">
+      <button id="setS">[ set START</button><button id="setE">] set END</button>
+      <span class="mark">start <b id="ms">—</b> &nbsp; end <b id="me">—</b></span>
+      <select id="cls"></select>
+      <button id="add" class="primary">add event (Enter)</button>
+    </div>
+    <div class="status">
+      Keys: <kbd>space</kbd> play/pause · <kbd>←</kbd><kbd>→</kbd> one frame · <kbd>shift</kbd>+arrows 1 s · <kbd>[</kbd> start · <kbd>]</kbd> end · <kbd>Enter</kbd> add · <kbd>1</kbd>–<kbd>9</kbd> pick class · <kbd>Del</kbd> remove selected row. Labels save automatically.
+    </div>
+  </div>
+  <div class="right">
+    <details><summary>Your rough notes for this video (click to jump)</summary><ul class="notes" id="notes"></ul></details>
+    <details open><summary>Class cheat sheet (start / end conventions)</summary><div class="def" id="defs"></div></details>
+    <table><thead><tr><th>#</th><th>start</th><th>end</th><th>class</th><th></th></tr></thead><tbody id="rows"></tbody></table>
+  </div>
+</div>
+<script>
+const CLASSES = ["accident","near_miss","red_light","wrong_way","illegal_u_turn","stopped_vehicle","jaywalking","failure_to_yield","illegal_turn","solid_line_crossing","stop_line","congestion","road_obstacle","fire_smoke"];
+const DEFS = {
+ accident:["Contact between road users or with a fixed object","first frame contact visible","all involved stop moving or leave frame"],
+ near_miss:["Sharp braking/swerving to avoid a collision, no contact","onset of evasive action","road users clear of each other"],
+ red_light:["Vehicle crosses the stop line while its signal is red","front crosses stop line","vehicle leaves intersection or frame"],
+ wrong_way:["Vehicle moves against its lane's traffic direction","enters opposing lane","returns to correct lane or leaves frame"],
+ illegal_u_turn:["U-turn where markings/signs prohibit it","starts turning","completes the turn"],
+ stopped_vehicle:["Stationary on carriageway ≥10 s, NOT in a signal queue","vehicle stops","moves again or is removed"],
+ jaywalking:["Pedestrian on the carriageway outside a crossing","steps onto road","leaves the road"],
+ failure_to_yield:["Vehicle drives through a crossing while a pedestrian is on it / stepping on","vehicle enters crossing","vehicle leaves crossing"],
+ illegal_turn:["Turn from wrong lane or in a prohibited direction","starts turning","completes the turn"],
+ solid_line_crossing:["Lane change / manoeuvre across a solid marking","wheel crosses line","fully in new lane"],
+ stop_line:["Stops past the stop line on red without entering intersection","vehicle stops","signal turns green"],
+ congestion:["Standstill/crawl across ALL lanes of one direction","queue stops moving","queue clears"],
+ road_obstacle:["Debris, animal or fallen object on carriageway","appears","removed"],
+ fire_smoke:["Visible fire or smoke","first visible smoke","smoke clears or video ends"]};
+const COL = {}; CLASSES.forEach((c,i)=>COL[c]=`hsl(${(i*47)%360} 70% 55%)`);
+
+const v=document.getElementById('v'), sel=document.getElementById('vid'), timeEl=document.getElementById('time');
+const clsSel=document.getElementById('cls'), rows=document.getElementById('rows'), tl=document.getElementById('tl'), st=document.getElementById('status');
+let META={}, cur=null, fps=29.97, events=[], notes=[], mS=null, mE=null, selRow=-1, rev=0;
+const WHO = localStorage.getItem('who') || (()=>{ const w=prompt('Your name (shown on saves):')||'anon'; localStorage.setItem('who',w); return w; })();
+
+CLASSES.forEach((c,i)=>{const o=document.createElement('option');o.value=c;o.textContent=`${i+1}. ${c}`;clsSel.appendChild(o);});
+document.getElementById('defs').innerHTML = CLASSES.map(c=>`<div><span class="chip" style="background:${COL[c]};color:#000">${c}</span> ${DEFS[c][0]}<br>&nbsp;&nbsp;<b>start:</b> ${DEFS[c][1]} &nbsp; <b>end:</b> ${DEFS[c][2]}</div>`).join('');
+clsSel.value='jaywalking';
+
+const fmt=t=>`${Math.floor(t/60)}:${(t%60).toFixed(2).padStart(5,'0')}`;
+function tick(){ timeEl.textContent=fmt(v.currentTime)+`  f${Math.round(v.currentTime*fps)}`; const c=tl.querySelector('.cur'); if(c&&v.duration) c.style.left=(v.currentTime/v.duration*100)+'%'; requestAnimationFrame(tick);} tick();
+
+async function load(name){
+  cur=name; fps=META[name].fps; v.src='/video/'+META[name].proxy; v.playbackRate=parseFloat(document.getElementById('rate').value);
+  const d=await (await fetch('/labels/'+name.replace(/\.[^.]+$/,''))).json(); events=d.events||[]; notes=d.notes||[]; rev=d.rev||0; mS=mE=null; selRow=-1; render();
+  localStorage.setItem('lastvid',name);
+}
+function render(){
+  document.getElementById('ms').textContent=mS==null?'—':fmt(mS); document.getElementById('me').textContent=mE==null?'—':fmt(mE);
+  rows.innerHTML=events.map((e,i)=>`<tr data-i="${i}" style="${i===selRow?'outline:1px solid var(--acc)':''}"><td>${i+1}</td><td><a href="#" data-j="${e.start}">${fmt(e.start)}</a></td><td><a href="#" data-j="${e.end}">${fmt(e.end)}</a></td><td><span class="chip" style="background:${COL[e.label]};color:#000">${e.label}</span></td><td><button data-del="${i}">✕</button></td></tr>`).join('');
+  document.getElementById('notes').innerHTML=notes.map(n=>`<li data-j="${n.t}" title="${n.text}"><b>${fmt(n.t)}</b> ${n.text}${n.guess?` <span class="chip">${n.guess}</span>`:''}</li>`).join('')||'<li>(none)</li>';
+  const dur=META[cur].duration; tl.innerHTML=events.map(e=>`<div class="ev" title="${e.label} ${fmt(e.start)}–${fmt(e.end)}" style="left:${e.start/dur*100}%;width:${Math.max(0.3,(e.end-e.start)/dur*100)}%;background:${COL[e.label]}"></div>`).join('')+'<div class="cur"></div>';
+}
+async function save(){
+  st.textContent='saving…';
+  const r=await fetch('/labels/'+cur.replace(/\.[^.]+$/,''),{method:'POST',body:JSON.stringify({events,rev,who:WHO})});
+  const j=await r.json();
+  if(j.ok){ rev=j.rev; st.textContent=`saved ${events.length} events (${WHO})`; }
+  else if(r.status===409){ alert('Someone else saved this video after you loaded it. Reloading their version; please re-add your last event.'); const t=v.currentTime; await load(cur); seek(t); }
+  else st.textContent='save failed';
+}
+function seek(t){ v.pause(); v.currentTime=Math.max(0,Math.min(v.duration||1e9,t)); }
+function addEvent(){ if(mS==null||mE==null||mE<=mS){st.textContent='need start < end';return;} events.push({start:+mS.toFixed(2),end:+mE.toFixed(2),label:clsSel.value}); events.sort((a,b)=>a.start-b.start); mS=mE=null; render(); save(); }
+
+document.addEventListener('click',e=>{
+  const b=e.target.closest('button'); const a=e.target.closest('[data-j]');
+  if(a){ e.preventDefault(); seek(parseFloat(a.dataset.j)); return; }
+  if(!b) return;
+  if(b.dataset.k){ const k=b.dataset.k; if(k==='-f') seek(v.currentTime-1/fps); else if(k==='+f') seek(v.currentTime+1/fps); else seek(v.currentTime+parseFloat(k)); }
+  if(b.id==='play'){ v.paused?v.play():v.pause(); }
+  if(b.id==='setS'){ mS=v.currentTime; render(); } if(b.id==='setE'){ mE=v.currentTime; render(); }
+  if(b.id==='add') addEvent();
+  if(b.dataset.del!==undefined){ events.splice(+b.dataset.del,1); selRow=-1; render(); save(); }
+});
+rows.addEventListener('click',e=>{ const tr=e.target.closest('tr'); if(tr){ selRow=+tr.dataset.i; render(); }});
+tl.addEventListener('click',e=>{ const r=tl.getBoundingClientRect(); seek((e.clientX-r.left)/r.width*v.duration); });
+v.addEventListener('play',()=>document.getElementById('play').textContent='pause'); v.addEventListener('pause',()=>document.getElementById('play').textContent='play');
+document.getElementById('rate').addEventListener('change',e=>v.playbackRate=parseFloat(e.target.value));
+sel.addEventListener('change',()=>load(sel.value));
+document.addEventListener('keydown',e=>{
+  if(e.target.tagName==='SELECT') e.target.blur();
+  const step=e.shiftKey?1:1/fps;
+  if(e.code==='Space'){ e.preventDefault(); v.paused?v.play():v.pause(); }
+  else if(e.key==='ArrowLeft'){ e.preventDefault(); seek(v.currentTime-step); }
+  else if(e.key==='ArrowRight'){ e.preventDefault(); seek(v.currentTime+step); }
+  else if(e.key==='['){ mS=v.currentTime; render(); } else if(e.key===']'){ mE=v.currentTime; render(); }
+  else if(e.key==='Enter'){ addEvent(); }
+  else if(e.key==='Delete'||e.key==='Backspace'){ if(selRow>=0){ events.splice(selRow,1); selRow=-1; render(); save(); } }
+  else if(/^[1-9]$/.test(e.key)){ const i=+e.key-1; if(CLASSES[i]) clsSel.value=CLASSES[i]; }
+  else if(e.key==='0'){ clsSel.value=CLASSES[9]; } else if(e.key==='-'){ clsSel.value=CLASSES[10]; } else if(e.key==='='){ clsSel.value=CLASSES[11]; }
+});
+(async()=>{ META=await (await fetch('/meta')).json(); Object.keys(META).forEach(n=>{const o=document.createElement('option');o.value=n;o.textContent=`${n}  (${Math.round(META[n].duration)} s)`;sel.appendChild(o);}); const last=localStorage.getItem('lastvid'); sel.value=(last&&META[last])?last:Object.keys(META)[0]; load(sel.value); })();
+</script>
+</body>
+</html>

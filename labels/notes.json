@@ -1,0 +1,30 @@
+{
+ "C3905": [
+  {"t": 12, "text": "pedestrians crossed on red (not an official class)", "guess": ""},
+  {"t": 13, "text": "pedestrian outside the crosswalk", "guess": "jaywalking"},
+  {"t": 34, "text": "pedestrians still on zebra when cars start on green", "guess": "failure_to_yield"},
+  {"t": 60, "text": "white truck stopped across the intersection until ~1:50", "guess": "stopped_vehicle"},
+  {"t": 78, "text": "car squeezes round the truck over the crosswalk", "guess": "illegal_turn?"},
+  {"t": 84, "text": "2 cars stopped on the crosswalk on red", "guess": "stop_line"},
+  {"t": 109, "text": "car onto crosswalk while pedestrians on it", "guess": "failure_to_yield"}
+ ],
+ "C3902": [
+  {"t": 1, "text": "pedestrian crossing on red (not an official class)", "guess": ""},
+  {"t": 7, "text": "pedestrian jaywalking", "guess": "jaywalking"},
+  {"t": 26, "text": "pedestrian jaywalking", "guess": "jaywalking"},
+  {"t": 31, "text": "pedestrian jaywalking", "guess": "jaywalking"},
+  {"t": 31, "text": "white car sweeps through bottom-right, illegal turn or U-turn?", "guess": "illegal_turn?"},
+  {"t": 51, "text": "cars through zebra while pedestrians on it", "guess": "failure_to_yield"},
+  {"t": 61, "text": "two pedestrians cross diagonally below the zebra", "guess": "jaywalking"},
+  {"t": 79, "text": "pedestrians crossing on red; vehicles pass through zebra", "guess": "failure_to_yield?"},
+  {"t": 85, "text": "group walks diagonally across the intersection", "guess": "jaywalking"},
+  {"t": 87, "text": "black car stopped on the far crosswalk on red", "guess": "stop_line"},
+  {"t": 150, "text": "pedestrians crossing on red; man walks across road left of island", "guess": "jaywalking?"},
+  {"t": 170, "text": "jaywalking", "guess": "jaywalking"},
+  {"t": 176, "text": "jaywalking", "guess": "jaywalking"},
+  {"t": 183, "text": "jaywalking", "guess": "jaywalking"},
+  {"t": 186, "text": "jaywalking", "guess": "jaywalking"},
+  {"t": 250, "text": "scooter on the crosswalk (not an official class unless it is a vehicle failing to yield)", "guess": ""},
+  {"t": 265, "text": "jaywalking", "guess": "jaywalking"}
+ ]
+}
