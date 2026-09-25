@@ -10,7 +10,7 @@
     ],
     [
      0.0,
-     105.5,
+     327.83,
      "stopped_vehicle"
     ],
     [
@@ -20,7 +20,7 @@
     ],
     [
      13.71,
-     15.02,
+     14.51,
      "failure_to_yield"
     ],
     [
@@ -29,9 +29,19 @@
      "jaywalking"
     ],
     [
+     57.76,
+     72.27,
+     "congestion"
+    ],
+    [
      62.06,
      101.9,
      "stop_line"
+    ],
+    [
+     69.87,
+     73.07,
+     "solid_line_crossing"
     ],
     [
      78.68,
@@ -44,8 +54,8 @@
      "jaywalking"
     ],
     [
-     93.69,
-     95.7,
+     94.19,
+     94.59,
      "failure_to_yield"
     ],
     [
@@ -54,13 +64,23 @@
      "jaywalking"
     ],
     [
+     108.61,
+     110.51,
+     "solid_line_crossing"
+    ],
+    [
      108.81,
      149.25,
      "jaywalking"
     ],
     [
+     119.82,
+     123.32,
+     "solid_line_crossing"
+    ],
+    [
      156.16,
-     157.36,
+     158.56,
      "failure_to_yield"
     ],
     [
@@ -69,9 +89,9 @@
      "failure_to_yield"
     ],
     [
-     199.1,
-     297.6,
-     "stopped_vehicle"
+     204.81,
+     208.21,
+     "solid_line_crossing"
     ],
     [
      220.62,
@@ -89,14 +109,24 @@
      "jaywalking"
     ],
     [
+     259.76,
+     263.06,
+     "solid_line_crossing"
+    ],
+    [
      273.47,
      281.48,
      "jaywalking"
     ],
     [
-     298.2,
-     327.83,
-     "stopped_vehicle"
+     286.89,
+     297.6,
+     "congestion"
+    ],
+    [
+     304.4,
+     305.5,
+     "failure_to_yield"
     ]
    ],
    "risk": [
@@ -40920,8 +40950,8 @@
      "jaywalking"
     ],
     [
-     5.0,
-     5.81,
+     5.11,
+     5.51,
      "failure_to_yield"
     ],
     [
@@ -40935,29 +40965,9 @@
      "stopped_vehicle"
     ],
     [
-     51.35,
-     51.95,
-     "failure_to_yield"
-    ],
-    [
      52.65,
      63.76,
      "stop_line"
-    ],
-    [
-     54.35,
-     60.16,
-     "red_light"
-    ],
-    [
-     55.45,
-     57.06,
-     "failure_to_yield"
-    ],
-    [
-     59.76,
-     60.46,
-     "failure_to_yield"
     ],
     [
      78.28,
@@ -40970,34 +40980,19 @@
      "jaywalking"
     ],
     [
-     124.52,
-     125.42,
-     "failure_to_yield"
+     126.03,
+     128.93,
+     "solid_line_crossing"
     ],
     [
-     126.63,
-     127.33,
-     "failure_to_yield"
-    ],
-    [
-     130.03,
-     131.03,
-     "failure_to_yield"
-    ],
-    [
-     130.53,
-     134.53,
-     "red_light"
+     130.93,
+     134.13,
+     "solid_line_crossing"
     ],
     [
      136.14,
      169.77,
      "jaywalking"
-    ],
-    [
-     136.84,
-     138.44,
-     "failure_to_yield"
     ],
     [
      145.04,
@@ -41006,12 +41001,12 @@
     ],
     [
      156.76,
-     158.06,
+     160.06,
      "failure_to_yield"
     ],
     [
-     159.36,
-     160.06,
+     161.86,
+     165.56,
      "failure_to_yield"
     ],
     [
@@ -41025,19 +41020,24 @@
      "failure_to_yield"
     ],
     [
+     174.57,
+     177.78,
+     "solid_line_crossing"
+    ],
+    [
      179.08,
-     180.08,
+     179.48,
+     "failure_to_yield"
+    ],
+    [
+     195.29,
+     195.59,
      "failure_to_yield"
     ],
     [
      197.1,
-     197.8,
+     197.7,
      "failure_to_yield"
-    ],
-    [
-     205.1,
-     207.91,
-     "red_light"
     ],
     [
      205.21,
@@ -41051,37 +41051,32 @@
     ],
     [
      239.04,
-     241.34,
-     "failure_to_yield"
-    ],
-    [
-     242.34,
      242.94,
      "failure_to_yield"
     ],
     [
-     243.54,
-     247.04,
-     "red_light"
-    ],
-    [
-     246.05,
+     244.54,
      246.75,
      "failure_to_yield"
     ],
     [
      248.35,
-     251.45,
+     248.95,
      "failure_to_yield"
     ],
     [
-     252.55,
-     253.55,
+     250.55,
+     251.25,
      "failure_to_yield"
     ],
     [
-     255.25,
-     256.96,
+     253.45,
+     253.95,
+     "failure_to_yield"
+    ],
+    [
+     256.16,
+     256.86,
      "failure_to_yield"
     ],
     [
@@ -41095,9 +41090,9 @@
      "jaywalking"
     ],
     [
-     281.48,
-     283.48,
-     "red_light"
+     279.78,
+     280.28,
+     "failure_to_yield"
     ],
     [
      294.49,
@@ -79222,13 +79217,23 @@
     ],
     [
      0.1,
-     67.17,
+     317.72,
      "stopped_vehicle"
     ],
     [
-     23.42,
+     12.41,
+     12.71,
+     "failure_to_yield"
+    ],
+    [
+     23.52,
      24.22,
      "failure_to_yield"
+    ],
+    [
+     50.45,
+     53.85,
+     "solid_line_crossing"
     ],
     [
      52.55,
@@ -79241,19 +79246,14 @@
      "jaywalking"
     ],
     [
-     68.57,
+     70.07,
      71.37,
      "failure_to_yield"
     ],
     [
-     68.87,
-     220.22,
-     "stopped_vehicle"
-    ],
-    [
-     74.97,
-     77.28,
-     "red_light"
+     72.47,
+     77.38,
+     "solid_line_crossing"
     ],
     [
      100.3,
@@ -79261,19 +79261,9 @@
      "stop_line"
     ],
     [
-     118.02,
-     118.92,
-     "failure_to_yield"
-    ],
-    [
      127.93,
      132.53,
      "jaywalking"
-    ],
-    [
-     140.04,
-     142.34,
-     "failure_to_yield"
     ],
     [
      149.85,
@@ -79281,9 +79271,9 @@
      "jaywalking"
     ],
     [
-     154.25,
-     157.66,
-     "red_light"
+     172.07,
+     172.47,
+     "failure_to_yield"
     ],
     [
      174.57,
@@ -79296,19 +79286,14 @@
      "failure_to_yield"
     ],
     [
-     203.0,
-     203.6,
-     "failure_to_yield"
-    ],
-    [
      219.02,
      224.52,
      "jaywalking"
     ],
     [
-     222.62,
-     317.72,
-     "stopped_vehicle"
+     224.02,
+     229.73,
+     "solid_line_crossing"
     ],
     [
      231.73,
@@ -79327,7 +79312,7 @@
     ],
     [
      270.97,
-     271.97,
+     271.77,
      "failure_to_yield"
     ],
     [
@@ -117467,9 +117452,19 @@
      "jaywalking"
     ],
     [
+     14.71,
+     15.21,
+     "failure_to_yield"
+    ],
+    [
      23.82,
      24.52,
      "failure_to_yield"
+    ],
+    [
+     25.53,
+     30.13,
+     "solid_line_crossing"
     ],
     [
      32.93,
@@ -117477,9 +117472,14 @@
      "jaywalking"
     ],
     [
-     35.34,
-     36.14,
-     "failure_to_yield"
+     43.24,
+     46.55,
+     "solid_line_crossing"
+    ],
+    [
+     50.75,
+     53.75,
+     "solid_line_crossing"
     ],
     [
      53.55,
@@ -117490,11 +117490,6 @@
      64.06,
      70.07,
      "jaywalking"
-    ],
-    [
-     71.97,
-     76.67,
-     "red_light"
     ],
     [
      72.77,
@@ -117512,33 +117507,18 @@
      "jaywalking"
     ],
     [
-     98.9,
-     100.2,
-     "failure_to_yield"
-    ],
-    [
      100.9,
      108.01,
      "jaywalking"
     ],
     [
-     101.5,
+     101.6,
      102.1,
      "failure_to_yield"
     ],
     [
-     111.31,
-     114.72,
-     "failure_to_yield"
-    ],
-    [
-     116.72,
-     117.92,
-     "failure_to_yield"
-    ],
-    [
-     118.92,
-     119.82,
+     111.71,
+     112.41,
      "failure_to_yield"
     ]
    ],
@@ -132851,33 +132831,33 @@
    "duration": 340.34,
    "budget_sec": 1021.0,
    "errors": [],
-   "part_a_sec": 130.1,
-   "part_b_sec": 86.1,
-   "total_sec": 216.2
+   "part_a_sec": 136.8,
+   "part_b_sec": 86.3,
+   "total_sec": 223.1
   },
   "C3897.MP4": {
    "duration": 317.82,
    "budget_sec": 953.5,
    "errors": [],
-   "part_a_sec": 120.1,
-   "part_b_sec": 81.3,
-   "total_sec": 201.3
+   "part_a_sec": 125.9,
+   "part_b_sec": 80.3,
+   "total_sec": 206.1
   },
   "C3902.MP4": {
    "duration": 317.82,
    "budget_sec": 953.5,
    "errors": [],
-   "part_a_sec": 124.8,
-   "part_b_sec": 81.2,
-   "total_sec": 206.1
+   "part_a_sec": 129.1,
+   "part_b_sec": 80.4,
+   "total_sec": 209.6
   },
   "C3905.MP4": {
    "duration": 127.63,
    "budget_sec": 382.9,
    "errors": [],
-   "part_a_sec": 50.4,
-   "part_b_sec": 30.2,
-   "total_sec": 80.6
+   "part_a_sec": 52.0,
+   "part_b_sec": 29.1,
+   "total_sec": 81.2
   }
  }
 }
