@@ -136,18 +136,24 @@ class RuleEngine:
             upstream = np.array([self.sc.in_upstream(x, y) and self.sc.past_stop_line(x, y) < 0 for x, y in zip(xs, ys)])
             queued = np.array([u and (signal_by_t(t) != "green" or self._since(green_starts, t) < 20) for u, t in zip(upstream, ts)])
             fl = still & onroad & ~queued
-            moved_any = (~still).any()
             for s_, e_ in flags_to_segments(ts, fl, min_dur=10.0, max_gap=1.5):
                 k0 = int(np.searchsorted(ts, s_)); k1 = int(np.searchsorted(ts, e_))
                 frac_box = inbox[k0:k1 + 1].mean() if k1 >= k0 else 0
                 need = 10.0 if frac_box > 0.5 else 60.0
-                # a vehicle that never moves in the whole clip outside the intersection is parked
-                # scenery (kerb lane at the bus stop), not an event we can bound in time
-                if frac_box <= 0.5 and not moved_any:
-                    continue
                 if e_ - s_ >= need:
-                    segs.append((s_, e_))
-        return merge_intervals(segs, gap=0.5)
+                    segs.append((s_, e_, float(xs[k0:k1 + 1].mean()), float(ys[k0:k1 + 1].mean())))
+        # the same parked vehicle often comes back as a new track id after an occlusion:
+        # join stationary segments at the same spot (< 25 px) separated by < 150 s
+        segs.sort()
+        joined = []
+        for s_, e_, x, y in segs:
+            for j in joined:
+                if abs(j[2] - x) < 25 * self.sc.sx and abs(j[3] - y) < 25 * self.sc.sy and s_ - j[1] < 150:
+                    j[1] = max(j[1], e_)
+                    break
+            else:
+                joined.append([s_, e_, x, y])
+        return merge_intervals([(a, b) for a, b, _, _ in joined], gap=0.5)
 
     @staticmethod
     def _phase_starts(signal_by_t, state, t_max=7200, step=0.1):
@@ -263,6 +269,11 @@ class RuleEngine:
                     L = float(np.hypot(dx, dy)) + 1e-6
                     ux, uy = dx / L, dy / L
                     nx, ny = -uy, ux
+                    # must be crossing the zebra with the traffic flow, not driving along it
+                    fu, coh, cnt = self.sc.flow_at(x, y)
+                    if coh < 0.6 or cnt < 30 or float(fu @ np.array([ux, uy])) < 0.6:
+                        fl.append(False)
+                        continue
                     half = 0.5 * ws[k] + 15 * self.sc.sx
                     ok = False
                     for px, py, pvx, pvy in peds.get(round(ts[k], 2), ()):
@@ -373,9 +384,11 @@ class RuleEngine:
         return merge_intervals(segs, gap=1.0)
 
     # --- congestion: the intersection box itself is jammed with stationary vehicles -----
-    def congestion(self, tracks, signal_by_t, min_vehicles=4, min_dur=5.0):
+    def congestion(self, tracks, signal_by_t, min_vehicles=4, min_dur=5.0, keep_vehicles=2):
         """Queues spilling into / blocking the intersection: >= min_vehicles distinct vehicles
-        stationary inside the box (not on the zebra) at the same time for >= min_dur."""
+        stationary inside the box (not on the zebra) at once for >= min_dur. The segment then
+        extends backwards/forwards while >= keep_vehicles remain stationary (queue stops
+        moving ... queue clears)."""
         per_t = defaultdict(set)
         for i, tr in tracks.items():
             if tr["cls"] not in VEHICLES:
@@ -384,9 +397,20 @@ class RuleEngine:
                 if self.sc.in_box(x, y) and not self.sc.in_main_zebra(x, y) and not self.sc.in_side_mouth(x, y) \
                         and speed(tr, k) < self.still_px_s:
                     per_t[round(t, 2)].add(i)
-        ts = sorted(per_t)
-        fl = [len(per_t[t]) >= min_vehicles for t in ts]
-        return flags_to_segments(np.array(ts), fl, min_dur=min_dur, max_gap=3.0)
+        ts = np.array(sorted(per_t))
+        if len(ts) == 0:
+            return []
+        cnt = np.array([len(per_t[t]) for t in ts])
+        cores = flags_to_segments(ts, cnt >= min_vehicles, min_dur=min_dur, max_gap=3.0)
+        out = []
+        for s_, e_ in cores:
+            a = int(np.searchsorted(ts, s_)); b = int(np.searchsorted(ts, e_))
+            while a > 0 and cnt[a - 1] >= keep_vehicles and ts[a] - ts[a - 1] < 1.5:
+                a -= 1
+            while b + 1 < len(ts) and cnt[b + 1] >= keep_vehicles and ts[b + 1] - ts[b] < 1.5:
+                b += 1
+            out.append((ts[a], ts[b]))
+        return merge_intervals(out, gap=3.0)
 
     # --- illegal U-turn: heading reverses (> 150 deg) within a few seconds while moving -----
     def illegal_u_turn(self, tracks, signal_by_t):
