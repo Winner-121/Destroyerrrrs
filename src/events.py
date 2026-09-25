@@ -220,7 +220,9 @@ class RuleEngine:
                     continue
                 # the near-pole head goes red ~6 s before the far-pole head (it skips the amber
                 # phase), so 'red' for vehicles starts 6 s after the combined red state begins
-                if not (signal_by_t(t) == "red" and signal_by_t(t - 6.0) == "red" and signal_by_t(t + 1.0) == "red"):
+                # ... and stays red for a while after: the whole queue moving 1-2 s before green
+                # is an early start, not a red-light run
+                if not (signal_by_t(t) == "red" and signal_by_t(t - 6.0) == "red" and signal_by_t(t + 3.0) == "red"):
                     continue
                 if speed(tr, k) < 2 * self.still_px_s:
                     continue
@@ -271,7 +273,8 @@ class RuleEngine:
                     nx, ny = -uy, ux
                     # must be crossing the zebra with the traffic flow, not driving along it
                     fu, coh, cnt = self.sc.flow_at(x, y)
-                    if coh < 0.6 or cnt < 30 or float(fu @ np.array([ux, uy])) < 0.6:
+                    zx, zy = self.sc.zebra_axis
+                    if coh < 0.6 or cnt < 30 or float(fu @ np.array([ux, uy])) < 0.6 or abs(ux * zx + uy * zy) > 0.95:
                         fl.append(False)
                         continue
                     half = 0.5 * ws[k] + 15 * self.sc.sx
@@ -279,7 +282,7 @@ class RuleEngine:
                     for px, py, pvx, pvy in peds.get(round(ts[k], 2), ()):
                         vx, vy = px - x, py - y
                         along = vx * ux + vy * uy
-                        if not (0 < along < ahead_max):
+                        if not (0.25 * ws[k] < along < ahead_max):  # ahead of the front, not beside
                             continue
                         lat = vx * nx + vy * ny
                         if abs(lat) < half:                      # in the vehicle's path
@@ -312,7 +315,7 @@ class RuleEngine:
                     continue
                 u, coh, cnt = self.sc.flow_at(x, y)
                 fl.append(coh > 0.85 and cnt > 60 and float(u @ np.array([dx, dy]) / L) < -0.9)
-            segs += flags_to_segments(tr["t"], fl, min_dur=1.0, max_gap=0.7)
+            segs += flags_to_segments(tr["t"], fl, min_dur=2.0, max_gap=0.7)
         return merge_intervals(segs, gap=1.0)
 
     # --- solid line crossing: ground point switches side of a solid divider while moving -----

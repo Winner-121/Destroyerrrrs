@@ -36,6 +36,8 @@ class Scene:
 
         self.road = tf(L["road"])
         self.zebra_main = tf(L["zebra_main"])
+        _za = (self.zebra_main[1] + self.zebra_main[2]) / 2 - (self.zebra_main[0] + self.zebra_main[3]) / 2
+        self.zebra_axis = tuple((_za / (np.linalg.norm(_za) + 1e-6)).tolist())  # unit vector along the crossing
         self.zebra_bottom = tf(L["zebra_bottom"])
         self.islands = [tf(v) for v in L["islands"].values()]
         self.approach = tf(L["near_carriageway_approach"])
