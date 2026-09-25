@@ -23,11 +23,13 @@ if str(ROOT) not in sys.path:
 # Classes we actually predict. (Removing ids we never output is allowed; adding is not.)
 CLASSES: list[str] = [
     "red_light",
+    "stop_line",
     "stopped_vehicle",
     "jaywalking",
     "failure_to_yield",
-    "stop_line",
     "wrong_way",
+    "solid_line_crossing",
+    "congestion",
 ]
 
 RISK_HORIZON_SEC = 5.0

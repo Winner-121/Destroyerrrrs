@@ -3,9 +3,9 @@
 Traffic-event detection from a fixed road camera (Part A) and causal accident
 anticipation (Part B), implemented behind the organizers' `solution.py` interface.
 
-> Status: Part A pipeline complete and validated with the official harness on the
-> four sample videos (`predictions_samples.json`). Part B is a placeholder for now.
-> Team labels of the sample videos are in progress (`labels/`).
+> Status: Part A complete and tuned against the team's labels of the four sample videos
+> (`labels/`, `predictions_samples.json`). Part B is intentionally left as the default
+> estimator (returns 0).
 
 ## Install and run
 
@@ -60,14 +60,38 @@ appearance-free tracker (ByteTrack). **Rule-based:** everything else.
 
 | class | rule (short) |
 |---|---|
-| `red_light` | front crosses the stop line ≥ 1.5 s into red, moving, and clears the zebra within 4 s |
-| `stop_line` | stationary with the front past the stop bar (not through the zebra) while red |
-| `stopped_vehicle` | stationary ≥ 10 s inside the intersection, or ≥ 60 s elsewhere; signal queues and whole-clip parked cars excluded |
-| `jaywalking` | pedestrian ≥ 14 px inside the carriageway, off any crossing/island, walking ≥ 40 px, ≥ 2 s; riders inside vehicle boxes ignored |
-| `failure_to_yield` | vehicle moving across the main zebra within 220 px of a pedestrian on it |
-| `wrong_way` | heading opposite the learned flow (cos < −0.8) for ≥ 3 s outside the intersection |
+| `red_light` | came down the near carriageway with the flow, crosses the stop line moving, signal red for ≥ 6 s before and ≥ 3 s after (the near-pole head has no amber: it goes red 6 s before the far-pole head), clears the zebra within 4 s |
+| `stop_line` | stationary with the front 8–60 px past the stop bar while red, ≥ 3 s |
+| `stopped_vehicle` | stationary ≥ 10 s inside the intersection or ≥ 60 s elsewhere; signal queues (upstream of the stop line while not green, or < 20 s after green) excluded; re-identified parked vehicles joined across track ids |
+| `jaywalking` | pedestrian ≥ 14 px inside the carriageway, off any crossing/island/parked zone, walking ≥ 40 px, ≥ 2 s; riders inside vehicle boxes ignored |
+| `failure_to_yield` | vehicle crossing the main zebra (with the flow, not along it) while a walking pedestrian is ahead of its front and inside, or about to enter, its lane corridor |
+| `wrong_way` | heading opposite the learned flow (cos < −0.9) for ≥ 2 s outside the intersection |
+| `solid_line_crossing` | ground point drifts monotonically from one side of a solid divider to the other; segment from the start of the drift to 1.5 s after settling |
+| `congestion` | ≥ 4 vehicles stationary inside the intersection box at once for ≥ 5 s, extended while ≥ 2 remain |
 
-`CLASSES` in `solution.py` lists only these six; other official ids are never predicted.
+Not predicted (rules tried and dropped after review against the team labels):
+`illegal_turn` (island-mounting test, 0/11 confirmed), `illegal_u_turn` (heading reversal,
+fires on tracker noise), `accident`, `near_miss`, `road_obstacle`, `fire_smoke`.
+`CLASSES` in `solution.py` lists only the eight predicted ids.
+
+### Results on the sample videos (team labels)
+
+Labels: 4 videos, 18 min, 102 events by the team (`labels/my_labels.json`), scored with
+the official `evaluate.py` (same-class overlapping labels merged first, as the
+organizers do for simultaneous events). Boundaries in the labels are approximate.
+
+| class | labels | F1@0.3 | F1@0.5 | F1@0.7 |
+|---|---|---|---|---|
+| stopped_vehicle | 6 | 0.83 | 0.83 | 0.83 |
+| stop_line | 4 | 0.73 | 0.73 | 0.73 |
+| red_light | 1 | 1.00 | 1.00 | 1.00 |
+| congestion | 2 | 1.00 | 1.00 | 0.00 |
+| jaywalking | 33 | 0.63 | 0.49 | 0.44 |
+| solid_line_crossing | 22 | 0.60 | 0.54 | 0.38 |
+| failure_to_yield | 11 | 0.05 | 0.05 | 0.05 |
+| wrong_way / illegal_turn / illegal_u_turn | 1 each | 0 | 0 | 0 |
+
+Score A on the team labels: **0.43** (macro over the 10 classes present in labels or predictions).
 
 ### Data and models
 
