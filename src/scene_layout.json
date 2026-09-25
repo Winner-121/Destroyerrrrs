@@ -376,5 +376,38 @@
    480
   ]
  ],
- "side_street_mouth_note": "vehicles from the right side street queue here waiting to enter; not stopped_vehicle unless very long"
+ "side_street_mouth_note": "vehicles from the right side street queue here waiting to enter; not stopped_vehicle unless very long",
+ "solid_lines": [
+  [
+   [
+    33,
+    150
+   ],
+   [
+    358,
+    326
+   ]
+  ],
+  [
+   [
+    263,
+    191
+   ],
+   [
+    502,
+    299
+   ]
+  ],
+  [
+   [
+    317,
+    256
+   ],
+   [
+    436,
+    312
+   ]
+  ]
+ ],
+ "solid_lines_note": "solid lane dividers in the near-carriageway approach, ending at the stop line (from Hough on reference_bg)"
 }

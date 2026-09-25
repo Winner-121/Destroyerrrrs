@@ -255,6 +255,51 @@ class RuleEngine:
             segs += flags_to_segments(tr["t"], fl, min_dur=3.0, max_gap=1.0)
         return merge_intervals(segs, gap=1.0)
 
+    # --- solid line crossing: ground point switches side of a solid divider while moving -----
+    def solid_line_crossing(self, tracks, signal_by_t):
+        """Ground point drifts from one side of a solid divider to the other: within 1.5 s
+        before the sign flip it was clearly (> thr) on one side and never on the other,
+        within 1.5 s after it is clearly on the other side and never back.
+        Segment: from the farthest old-side sample before the flip (the lane change
+        begins) to 1.5 s after the vehicle is clearly in the new lane."""
+        segs = []
+        w = max(3, int(1.5 / self.dt))
+        thr = 6.0 * self.sc.sx
+        tol = 2.0 * self.sc.sx
+        for tr in tracks.values():
+            if tr["cls"] not in VEHICLES or len(tr["t"]) < 6:
+                continue
+            xs, ys, ts = tr["cx"], tr["cy"], tr["t"]
+            sides = [self.sc.solid_line_side(x, y) for x, y in zip(xs, ys)]
+            for li in range(len(self.sc.solid_lines)):
+                sd = np.array([np.nan if s_[li] is None else s_[li] for s_ in sides], dtype=np.float64)
+                k = 1
+                while k < len(sd) - 3:
+                    a_, b_ = sd[k - 1], sd[k]
+                    if np.isnan(a_) or np.isnan(b_) or (a_ < 0) == (b_ < 0):
+                        k += 1
+                        continue
+                    lo = max(0, k - w)
+                    before, after = sd[lo:k], sd[k:k + w]
+                    bef, aft = before[~np.isnan(before)], after[~np.isnan(after)]
+                    if len(bef) < 3 or len(aft) < 3:
+                        k += 1
+                        continue
+                    sign = 1.0 if b_ > 0 else -1.0  # direction of the flip
+                    ok = ((sign * bef).min() < -thr and (sign * bef <= tol).all()
+                          and (sign * aft).max() > thr and (sign * aft >= -tol).all())
+                    if ok and speed(tr, k) > self.still_px_s and (self.sc.in_upstream(xs[k], ys[k]) or self.sc.in_upstream(xs[lo], ys[lo])):
+                        vals = np.where(np.isnan(before), np.inf, sign * before)
+                        i0 = lo + int(np.argmin(vals))                    # farthest on the old side
+                        i1 = k
+                        while i1 < min(len(sd) - 1, k + w - 1) and not (not np.isnan(sd[i1]) and sign * sd[i1] > thr):
+                            i1 += 1
+                        segs.append((max(ts[0], ts[i0]), min(ts[-1], ts[i1] + 1.5)))
+                        k += w
+                        continue
+                    k += 1
+        return merge_intervals(segs, gap=0.5)
+
     def run(self, rows, signal_by_t, classes=None):
         tracks = group_tracks(rows)
         rules = {
@@ -264,6 +309,7 @@ class RuleEngine:
             "red_light": self.red_light,
             "failure_to_yield": self.failure_to_yield,
             "wrong_way": self.wrong_way,
+            "solid_line_crossing": self.solid_line_crossing,
         }
         events = []
         for name, fn in rules.items():

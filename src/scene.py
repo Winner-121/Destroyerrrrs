@@ -42,6 +42,7 @@ class Scene:
         self.upstream = tf(L["near_carriageway_upstream"])
         self.zebra_side = tf(L["zebra_side"])
         self.side_mouth = tf(L["side_street_mouth"])
+        self.solid_lines = [tf(seg).astype(np.float64) for seg in L.get("solid_lines", [])]
         self.box = tf(L["intersection_box"])
         self.parked = tf(L["parked_zone"])
         s = L["stop_line_near"]
@@ -123,6 +124,24 @@ class Scene:
         if float((zc - self.stop_p1) @ n) < 0:
             dist = -dist
         return dist
+
+    def solid_line_side(self, x, y):
+        """For each solid line: signed side of (x, y) if its projection lies within the segment
+        (with a small margin), else None."""
+        out = []
+        for seg in self.solid_lines:
+            p1, p2 = seg[0], seg[1]
+            d = p2 - p1
+            L = float(np.linalg.norm(d))
+            u = d / L
+            v = np.array([x, y], dtype=np.float64) - p1
+            along = float(v @ u)
+            if -0.05 * L <= along <= 1.6 * L:  # extended past the stop line so the 'after' side is observable
+                n = np.array([u[1], -u[0]])
+                out.append(float(v @ n))
+            else:
+                out.append(None)
+        return out
 
     def to_reference(self, x, y):
         """Working-frame pixel -> reference-frame pixel (undo scale and homography)."""
