@@ -300,6 +300,29 @@ class RuleEngine:
                     k += 1
         return merge_intervals(segs, gap=0.5)
 
+    # --- illegal turn: a moving vehicle drives over a pedestrian / traffic island -----
+    def illegal_turn(self, tracks, signal_by_t):
+        """A vehicle drives over a pedestrian / traffic island: its ground-contact strip lies
+        largely on the island, its ground point is on (or at) the island, and it moves at
+        mounting speed (fast traffic passing behind an island in image space is excluded)."""
+        segs = []
+        v_max = 100.0 * self.sc.sx
+        for tr in tracks.values():
+            if tr["cls"] not in VEHICLES or len(tr["t"]) < 3:
+                continue
+            fl = []
+            for k, (x, yb, w, h) in enumerate(zip(tr["cx"], tr["cy"], tr["w"], tr["h"])):
+                m = self.sc.island_margin(x, yb)
+                if m < -4 * self.sc.sx:
+                    fl.append(False)
+                    continue
+                cov = self.sc.island_cover(x - w / 2, yb - h, x + w / 2, yb, frac_h=0.1)
+                v = speed(tr, k)
+                fl.append(cov > 0.3 and self.still_px_s < v < v_max)
+            for s_, e_ in flags_to_segments(tr["t"], fl, min_dur=0.0, max_gap=1.0):
+                segs.append((max(tr["t"][0], s_ - 1.0), min(tr["t"][-1], e_ + 1.5)))
+        return merge_intervals(segs, gap=1.0)
+
     def run(self, rows, signal_by_t, classes=None):
         tracks = group_tracks(rows)
         rules = {
@@ -310,6 +333,7 @@ class RuleEngine:
             "failure_to_yield": self.failure_to_yield,
             "wrong_way": self.wrong_way,
             "solid_line_crossing": self.solid_line_crossing,
+            "illegal_turn": self.illegal_turn,
         }
         events = []
         for name, fn in rules.items():

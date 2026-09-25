@@ -87,6 +87,32 @@ class Scene:
     def in_island(self, x, y) -> bool:
         return any(self._inside(p, x, y) for p in self.islands)
 
+    def island_cover(self, x1, y1, x2, y2, frac_h: float = 0.15) -> float:
+        """Share of the vehicle's ground-contact strip (lower `frac_h` of the box) that lies on
+        a small island (not the median). ~0 for a vehicle passing beside an island, high when
+        its wheels are on it. Big boxes (buses) beside an island stay near 0 because the strip
+        is thin."""
+        best = 0.0
+        y0 = y2 - frac_h * (y2 - y1)
+        strip_area = max(1.0, (x2 - x1) * (y2 - y0))
+        for p in self.islands[1:]:
+            px0, py0 = p.min(axis=0)
+            px1, py1 = p.max(axis=0)
+            if x2 < px0 or x1 > px1 or y2 < py0 or y0 > py1:
+                continue
+            ox0, oy0 = int(min(px0, x1)), int(min(py0, y0))
+            w, h = int(max(px1, x2) - ox0) + 2, int(max(py1, y2) - oy0) + 2
+            isl = np.zeros((h, w), np.uint8)
+            cv2.fillPoly(isl, [np.round(p - [ox0, oy0]).astype(np.int32)], 1)
+            bx = np.zeros_like(isl)
+            cv2.rectangle(bx, (int(x1 - ox0), int(y0 - oy0)), (int(x2 - ox0), int(y2 - oy0)), 1, -1)
+            best = max(best, float((isl & bx).sum()) / strip_area)
+        return best
+
+    def island_margin(self, x, y) -> float:
+        """Largest signed distance to any island polygon (positive = inside)."""
+        return max(cv2.pointPolygonTest(p, (float(x), float(y)), True) for p in self.islands)
+
     def in_approach(self, x, y) -> bool:
         return self._inside(self.approach, x, y)
 
