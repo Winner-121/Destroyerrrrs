@@ -199,7 +199,22 @@ class RuleEngine:
                 if not (inapp[k - 1] and d[k - 1] <= 0 < d[k]):
                     continue
                 t = ts[k]
-                if not (signal_by_t(t) == "red" and signal_by_t(t - 1.5) == "red" and signal_by_t(t + 1.0) == "red"):
+                # provenance: came down the near carriageway (upstream polygon) for >= 2 s
+                # before the stop line, heading with the flow; turning traffic from the
+                # median gap / side street is governed by other signals
+                k0 = k - 1
+                while k0 > 0 and ts[k] - ts[k0] < 2.0:
+                    k0 -= 1
+                if ts[k] - ts[k0] < 1.5 or not all(self.sc.in_upstream(xs[j], ys[j]) for j in range(k0, k)):
+                    continue
+                dx, dy = xs[k] - xs[k0], ys[k] - ys[k0]
+                L = float(np.hypot(dx, dy)) + 1e-6
+                u, coh, cnt = self.sc.flow_at(xs[k0], ys[k0])
+                if coh > 0.5 and float(u @ np.array([dx, dy]) / L) < 0.6:
+                    continue
+                # the near-pole head goes red ~6 s before the far-pole head (it skips the amber
+                # phase), so 'red' for vehicles starts 6 s after the combined red state begins
+                if not (signal_by_t(t) == "red" and signal_by_t(t - 6.0) == "red" and signal_by_t(t + 1.0) == "red"):
                     continue
                 if speed(tr, k) < 2 * self.still_px_s:
                     continue
@@ -214,7 +229,9 @@ class RuleEngine:
 
     # --- failure to yield: vehicle crosses the main zebra near a pedestrian who is on it -----
     def failure_to_yield(self, tracks, signal_by_t):
-        peds = defaultdict(list)  # t -> [(x, y)]
+        """Vehicle moving across the main zebra while a pedestrian is on the zebra within
+        `near` px of it (the literal class definition; the crossing is ~900 px long)."""
+        peds = defaultdict(list)
         for tr in tracks.values():
             if tr["cls"] != PERSON:
                 continue
@@ -251,8 +268,8 @@ class RuleEngine:
                     fl.append(False)
                     continue
                 u, coh, cnt = self.sc.flow_at(x, y)
-                fl.append(coh > 0.85 and cnt > 60 and float(u @ np.array([dx, dy]) / L) < -0.8)
-            segs += flags_to_segments(tr["t"], fl, min_dur=3.0, max_gap=1.0)
+                fl.append(coh > 0.85 and cnt > 60 and float(u @ np.array([dx, dy]) / L) < -0.9)
+            segs += flags_to_segments(tr["t"], fl, min_dur=1.0, max_gap=0.7)
         return merge_intervals(segs, gap=1.0)
 
     # --- solid line crossing: ground point switches side of a solid divider while moving -----
@@ -323,6 +340,54 @@ class RuleEngine:
                 segs.append((max(tr["t"][0], s_ - 1.0), min(tr["t"][-1], e_ + 1.5)))
         return merge_intervals(segs, gap=1.0)
 
+    # --- congestion: the intersection box itself is jammed with stationary vehicles -----
+    def congestion(self, tracks, signal_by_t, min_vehicles=4, min_dur=5.0):
+        """Queues spilling into / blocking the intersection: >= min_vehicles distinct vehicles
+        stationary inside the box (not on the zebra) at the same time for >= min_dur."""
+        per_t = defaultdict(set)
+        for i, tr in tracks.items():
+            if tr["cls"] not in VEHICLES:
+                continue
+            for k, (t, x, y) in enumerate(zip(tr["t"], tr["cx"], tr["cy"])):
+                if self.sc.in_box(x, y) and not self.sc.in_main_zebra(x, y) and not self.sc.in_side_mouth(x, y) \
+                        and speed(tr, k) < self.still_px_s:
+                    per_t[round(t, 2)].add(i)
+        ts = sorted(per_t)
+        fl = [len(per_t[t]) >= min_vehicles for t in ts]
+        return flags_to_segments(np.array(ts), fl, min_dur=min_dur, max_gap=3.0)
+
+    # --- illegal U-turn: heading reverses (> 150 deg) within a few seconds while moving -----
+    def illegal_u_turn(self, tracks, signal_by_t):
+        segs = []
+        w = max(2, int(1.0 / self.dt))
+        for tr in tracks.values():
+            if tr["cls"] not in VEHICLES or len(tr["t"]) < 4 * w:
+                continue
+            xs, ys, ts = tr["cx"], tr["cy"], tr["t"]
+            k = w
+            while k < len(ts) - w:
+                h0 = np.array([xs[k] - xs[k - w], ys[k] - ys[k - w]])
+                L0 = float(np.linalg.norm(h0))
+                if L0 < 25 * self.sc.sx:
+                    k += 1
+                    continue
+                # look ahead up to 6 s for a reversed heading
+                j = k + w
+                hit = None
+                while j < len(ts) and ts[j] - ts[k] <= 6.0:
+                    h1 = np.array([xs[j] - xs[j - w], ys[j] - ys[j - w]])
+                    L1 = float(np.linalg.norm(h1))
+                    if L1 >= 25 * self.sc.sx and float(h0 @ h1) / (L0 * L1) < -0.87:
+                        hit = j
+                        break
+                    j += 1
+                if hit is not None and self.sc.on_road(xs[k], ys[k]):
+                    segs.append((ts[k - w], min(ts[-1], ts[hit] + 1.0)))
+                    k = hit + w
+                    continue
+                k += 1
+        return merge_intervals(segs, gap=1.0)
+
     def run(self, rows, signal_by_t, classes=None):
         tracks = group_tracks(rows)
         rules = {
@@ -333,7 +398,7 @@ class RuleEngine:
             "failure_to_yield": self.failure_to_yield,
             "wrong_way": self.wrong_way,
             "solid_line_crossing": self.solid_line_crossing,
-            "illegal_turn": self.illegal_turn,
+            "congestion": self.congestion,
         }
         events = []
         for name, fn in rules.items():
