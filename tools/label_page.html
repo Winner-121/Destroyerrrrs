@@ -63,8 +63,9 @@
     </div>
   </div>
   <div class="right">
+    <details open><summary>Detector candidates not in your labels — <span id="candsum"></span> (click time to jump, ✚ confirm, − reject)</summary><ul class="notes" id="cands"></ul></details>
     <details><summary>Your rough notes for this video (click to jump)</summary><ul class="notes" id="notes"></ul></details>
-    <details open><summary>Class cheat sheet (start / end conventions)</summary><div class="def" id="defs"></div></details>
+    <details open><summary>Class cheat sheet (start / end conventions)</summary><div class="def" style="color:var(--warn);margin-bottom:6px"><b>Not events:</b> pedestrians crossing on the zebra against their light, vehicles queuing normally at red, speeding. One segment per event; two events of the same class at the same moment become one segment.</div><div class="def" id="defs"></div></details>
     <table><thead><tr><th>#</th><th>start</th><th>end</th><th>class</th><th></th></tr></thead><tbody id="rows"></tbody></table>
   </div>
 </div>
@@ -89,7 +90,7 @@ const COL = {}; CLASSES.forEach((c,i)=>COL[c]=`hsl(${(i*47)%360} 70% 55%)`);
 
 const v=document.getElementById('v'), sel=document.getElementById('vid'), timeEl=document.getElementById('time');
 const clsSel=document.getElementById('cls'), rows=document.getElementById('rows'), tl=document.getElementById('tl'), st=document.getElementById('status');
-let META={}, cur=null, fps=29.97, events=[], notes=[], mS=null, mE=null, selRow=-1, rev=0;
+let META={}, cur=null, fps=29.97, events=[], notes=[], cands=[], rejected=[], mS=null, mE=null, selRow=-1, rev=0;
 const WHO = localStorage.getItem('who') || (()=>{ const w=prompt('Your name (shown on saves):')||'anon'; localStorage.setItem('who',w); return w; })();
 
 CLASSES.forEach((c,i)=>{const o=document.createElement('option');o.value=c;o.textContent=`${i+1}. ${c}`;clsSel.appendChild(o);});
@@ -101,18 +102,25 @@ function tick(){ timeEl.textContent=fmt(v.currentTime)+`  f${Math.round(v.curren
 
 async function load(name){
   cur=name; fps=META[name].fps; v.src='/video/'+META[name].proxy; v.playbackRate=parseFloat(document.getElementById('rate').value);
-  const d=await (await fetch('/labels/'+name.replace(/\.[^.]+$/,''))).json(); events=d.events||[]; notes=d.notes||[]; rev=d.rev||0; mS=mE=null; selRow=-1; render();
+  const d=await (await fetch('/labels/'+name.replace(/\.[^.]+$/,''))).json(); events=d.events||[]; notes=d.notes||[]; rejected=d.rejected||[]; rev=d.rev||0; mS=mE=null; selRow=-1;
+  try { cands=await (await fetch('/candidates/'+name.replace(/\.[^.]+$/,''))).json(); } catch(e) { cands=[]; }
+  render();
   localStorage.setItem('lastvid',name);
 }
 function render(){
   document.getElementById('ms').textContent=mS==null?'—':fmt(mS); document.getElementById('me').textContent=mE==null?'—':fmt(mE);
   rows.innerHTML=events.map((e,i)=>`<tr data-i="${i}" style="${i===selRow?'outline:1px solid var(--acc)':''}"><td>${i+1}</td><td><a href="#" data-j="${e.start}">${fmt(e.start)}</a></td><td><a href="#" data-j="${e.end}">${fmt(e.end)}</a></td><td><span class="chip" style="background:${COL[e.label]};color:#000">${e.label}</span></td><td><button data-del="${i}">✕</button></td></tr>`).join('');
+  const covered=(c)=>events.some(e=>e.label===c.label && Math.min(e.end,c.end)-Math.max(e.start,c.start) > 0.3*(Math.max(e.end,c.end)-Math.min(e.start,c.start)));
+  const isRej=(c)=>rejected.some(r=>r.label===c.label && Math.abs(r.start-c.start)<0.05 && Math.abs(r.end-c.end)<0.05);
+  const nOpen=cands.filter(c=>!covered(c)&&!isRej(c)).length;
+  document.getElementById('cands').innerHTML=cands.map((c,i)=>{const cov=covered(c), rej=isRej(c); return `<li class="${cov||rej?'done':''}"><b data-j="${c.start}">${fmt(c.start)}–${fmt(c.end)}</b> <span class="chip" style="background:${COL[c.label]};color:#000">${c.label}</span>${c.overlaps?` <span class="chip">overlaps your ${c.overlaps}</span>`:''} ${rej?`<span class="chip" style="color:var(--bad)">rejected</span> <button data-unrej="${i}" title="undo">↺</button>`:cov?`<span class="chip" style="color:var(--ok)">labelled</span>`:`<button data-addc="${i}" title="confirm: add as label">✚</button> <button data-rej="${i}" title="reject: not an event">−</button>`}</li>`;}).join('')||'<li>(none)</li>';
+  document.getElementById('candsum').textContent=`${nOpen} to review`;
   document.getElementById('notes').innerHTML=notes.map(n=>`<li data-j="${n.t}" title="${n.text}"><b>${fmt(n.t)}</b> ${n.text}${n.guess?` <span class="chip">${n.guess}</span>`:''}</li>`).join('')||'<li>(none)</li>';
   const dur=META[cur].duration; tl.innerHTML=events.map(e=>`<div class="ev" title="${e.label} ${fmt(e.start)}–${fmt(e.end)}" style="left:${e.start/dur*100}%;width:${Math.max(0.3,(e.end-e.start)/dur*100)}%;background:${COL[e.label]}"></div>`).join('')+'<div class="cur"></div>';
 }
 async function save(){
   st.textContent='saving…';
-  const r=await fetch('/labels/'+cur.replace(/\.[^.]+$/,''),{method:'POST',body:JSON.stringify({events,rev,who:WHO})});
+  const r=await fetch('/labels/'+cur.replace(/\.[^.]+$/,''),{method:'POST',body:JSON.stringify({events,rejected,rev,who:WHO})});
   const j=await r.json();
   if(j.ok){ rev=j.rev; st.textContent=`saved ${events.length} events (${WHO})`; }
   else if(r.status===409){ alert('Someone else saved this video after you loaded it. Reloading their version; please re-add your last event.'); const t=v.currentTime; await load(cur); seek(t); }
@@ -130,6 +138,9 @@ document.addEventListener('click',e=>{
   if(b.id==='setS'){ mS=v.currentTime; render(); } if(b.id==='setE'){ mE=v.currentTime; render(); }
   if(b.id==='add') addEvent();
   if(b.dataset.del!==undefined){ events.splice(+b.dataset.del,1); selRow=-1; render(); save(); }
+  if(b.dataset.addc!==undefined){ const c=cands[+b.dataset.addc]; events.push({start:c.start,end:c.end,label:c.label}); events.sort((a,b)=>a.start-b.start); render(); save(); }
+  if(b.dataset.rej!==undefined){ const c=cands[+b.dataset.rej]; rejected.push({start:c.start,end:c.end,label:c.label}); render(); save(); }
+  if(b.dataset.unrej!==undefined){ const c=cands[+b.dataset.unrej]; rejected=rejected.filter(r=>!(r.label===c.label && Math.abs(r.start-c.start)<0.05 && Math.abs(r.end-c.end)<0.05)); render(); save(); }
 });
 rows.addEventListener('click',e=>{ const tr=e.target.closest('tr'); if(tr){ selRow=+tr.dataset.i; render(); }});
 tl.addEventListener('click',e=>{ const r=tl.getBoundingClientRect(); seek((e.clientX-r.left)/r.width*v.duration); });

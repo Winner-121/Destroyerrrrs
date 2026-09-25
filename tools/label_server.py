@@ -70,12 +70,18 @@ class H(BaseHTTPRequestHandler):
             return self._send(200, PAGE.read_bytes(), "text/html; charset=utf-8")
         if self.path == "/meta":
             return self._send(200, json.dumps(META).encode())
+        m = re.match(r"^/candidates/([A-Za-z0-9_\-]+)$", self.path)
+        if m:
+            c = LABELS / "candidates.json"
+            data = json.loads(c.read_text()).get(m.group(1), []) if c.exists() else []
+            return self._send(200, json.dumps(data).encode())
         m = re.match(r"^/labels/([A-Za-z0-9_\-]+)$", self.path)
         if m:
             f = LABELS / (m.group(1) + ".json")
             notes = LABELS / "notes.json"
             data = json.loads(f.read_text()) if f.exists() else {"events": [], "rev": 0}
             data.setdefault("rev", 0)
+            data.setdefault("rejected", [])
             data["notes"] = json.loads(notes.read_text()).get(m.group(1), []) if notes.exists() else []
             return self._send(200, json.dumps(data).encode())
         m = re.match(r"^/video/([A-Za-z0-9_\-]+\.mp4)$", self.path)
@@ -133,8 +139,14 @@ class H(BaseHTTPRequestHandler):
             if 0 <= s < t:
                 events.append({"start": round(s, 2), "end": round(t, 2), "label": lab, "note": e.get("note", "")})
         events.sort(key=lambda e: (e["start"], e["label"]))
+        rejected = []
+        for r in body.get("rejected", []):
+            try:
+                rejected.append({"start": round(float(r["start"]), 2), "end": round(float(r["end"]), 2), "label": str(r["label"])})
+            except Exception:
+                pass
         new_rev = cur_rev + 1
-        f.write_text(json.dumps({"events": events, "rev": new_rev, "by": body.get("who", "")}, indent=1))
+        f.write_text(json.dumps({"events": events, "rejected": rejected, "rev": new_rev, "by": body.get("who", "")}, indent=1))
         write_ground_truth()
         self._send(200, json.dumps({"ok": True, "n": len(events), "rev": new_rev}).encode())
 
