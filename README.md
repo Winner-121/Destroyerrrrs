@@ -103,10 +103,15 @@ Score A on the team labels: **0.43** (macro over the 10 classes present in label
 
 No external video datasets were used so far.
 
-### Determinism
+### Determinism and reproducibility
 
-Seeds fixed (`src/pipeline.set_seeds`, seed 0), cuDNN benchmark off. Inference is
-FP16 on GPU; repeated runs on the same machine give identical events.
+Seeds fixed (`src/pipeline.set_seeds`, seed 0), cuDNN benchmark off, FP16 inference on
+GPU. Two runs on the same machine and environment give the same events up to a 0.1 s
+boundary difference on one segment (tracker tie-breaking). A different PyTorch / Ultralytics
+version changes a handful of near-threshold detections and can add or drop one short
+event per video, which is why `requirements.txt` pins `ultralytics`, `numpy` and
+`opencv`. Tested from a clean clone into a fresh virtual environment (install, weights
+download, harness, format check) on 2026-09-25.
 
 ## Repository layout
 
