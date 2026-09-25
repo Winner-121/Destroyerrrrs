@@ -229,28 +229,60 @@ class RuleEngine:
 
     # --- failure to yield: vehicle crosses the main zebra near a pedestrian who is on it -----
     def failure_to_yield(self, tracks, signal_by_t):
-        """Vehicle moving across the main zebra while a pedestrian is on the zebra within
-        `near` px of it (the literal class definition; the crossing is ~900 px long)."""
-        peds = defaultdict(list)
+        """Team definition: the vehicle moves through the crossing while a pedestrian who is
+        crossing has NOT yet passed the vehicle's path. Geometrically: pedestrian on the zebra,
+        ahead of the vehicle (0 < along < `ahead_max`), and either inside the vehicle's lane
+        corridor or outside it but walking towards it (still to cross)."""
+        peds = defaultdict(list)  # t -> [(x, y, vx, vy)]
         for tr in tracks.values():
-            if tr["cls"] != PERSON:
+            if tr["cls"] != PERSON or len(tr["t"]) < 3:
                 continue
-            for t, x, y in zip(tr["t"], tr["cx"], tr["cy"]):
-                if self.sc.in_main_zebra(x, y) and self.sc.on_road(x, y):
-                    peds[round(t, 2)].append((x, y))
-        near = 220 * self.sc.sx
+            xs, ys, ts = tr["cx"], tr["cy"], tr["t"]
+            for k in range(len(ts)):
+                x, y = xs[k], ys[k]
+                if not (self.sc.in_main_zebra(x, y) and self.sc.on_road(x, y)):
+                    continue
+                i, j = max(0, k - 2), min(len(ts) - 1, k + 2)
+                dt = max(1e-3, ts[j] - ts[i])
+                peds[round(ts[k], 2)].append((x, y, (xs[j] - xs[i]) / dt, (ys[j] - ys[i]) / dt))
+        ahead_max = 200 * self.sc.sx
+        approach_max = 75 * self.sc.sx
         segs = []
         for tr in tracks.values():
             if tr["cls"] not in VEHICLES:
                 continue
+            xs, ys, ts, ws = tr["cx"], tr["cy"], tr["t"], tr["w"]
+            n = len(ts)
             fl = []
-            for k, (t, x, y) in enumerate(zip(tr["t"], tr["cx"], tr["cy"])):
+            for k in range(n):
+                x, y = xs[k], ys[k]
                 ok = self.sc.in_main_zebra(x, y) and speed(tr, k) > 1.5 * self.still_px_s
                 if ok:
-                    ok = any(np.hypot(px - x, py - y) < near for px, py in peds.get(round(t, 2), ()))
+                    i, j = max(0, k - 2), min(n - 1, k + 2)
+                    dx, dy = xs[j] - xs[i], ys[j] - ys[i]
+                    L = float(np.hypot(dx, dy)) + 1e-6
+                    ux, uy = dx / L, dy / L
+                    nx, ny = -uy, ux
+                    half = 0.5 * ws[k] + 15 * self.sc.sx
+                    ok = False
+                    for px, py, pvx, pvy in peds.get(round(ts[k], 2), ()):
+                        vx, vy = px - x, py - y
+                        along = vx * ux + vy * uy
+                        if not (0 < along < ahead_max):
+                            continue
+                        lat = vx * nx + vy * ny
+                        if abs(lat) < half:                      # in the vehicle's path
+                            ok = True
+                            break
+                        wlat = pvx * nx + pvy * ny               # pedestrian lateral velocity
+                        # walking towards the path from the adjacent lane and about to reach it
+                        if abs(lat) < approach_max and lat * wlat < 0 and abs(wlat) > 10 * self.sc.sx \
+                                and (abs(lat) - half) / abs(wlat) < 2.5:
+                            ok = True
+                            break
                 fl.append(ok)
-            segs += flags_to_segments(tr["t"], fl, min_dur=0.6, max_gap=1.0)
-        return merge_intervals(segs, gap=1.0)
+            segs += flags_to_segments(ts, fl, min_dur=0.3, max_gap=1.5)
+        return merge_intervals(segs, gap=1.5)
 
     # --- wrong way: heading opposite the learned flow for > 3 s, outside the intersection box -----
     def wrong_way(self, tracks, signal_by_t):
