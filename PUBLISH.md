@@ -18,30 +18,17 @@ gh api -X POST repos/Winner-121/Destroyerrrrs/pages -f build_type=legacy -f 'sou
 The site appears within ~2 minutes at **https://winner-121.github.io/Destroyerrrrs/**
 (If the API call says Pages already exists, use `-X PUT` instead of `-X POST`.)
 
-## 3. Create the Hugging Face Space for the live demo
+## 3. Live demo (done): Modal, free CPU tier
 
-1. Sign up / log in at https://huggingface.co, then create a token at https://huggingface.co/settings/tokens (type: write).
-2. Create a Space: https://huggingface.co/new-space — name `destroyerrrrs-traffic-events`, SDK **Gradio**, hardware **CPU basic (free)**, public.
-3. Push the prepared folder (everything is in `work/space/`):
+Deployed from this repo with `modal deploy demo/modal_app.py` (account amir-kuldashev):
+https://amir-kuldashev--destroyerrrrs-traffic-events-web.modal.run
+It scales to zero when idle (first request after idle takes ~30 s) and costs nothing within
+the $30/month free credit. Redeploy with the same command after changing `demo/app.py` or `src/`.
 
-```bash
-pip install -U huggingface_hub   # once
-huggingface-cli login            # paste the token
-cd work/space
-git init && git lfs install
-git remote add origin https://huggingface.co/spaces/<YOUR_HF_USERNAME>/destroyerrrrs-traffic-events
-git add -A && git commit -m "traffic event demo" && git push -u origin main --force
-```
-
-The Space builds for ~5 minutes, then runs at
-`https://<YOUR_HF_USERNAME>-destroyerrrrs-traffic-events.hf.space` (also shown on the Space page).
-
-## 4. Put the demo URL into the website
+## 4. Push the site update with the demo URL
 
 ```bash
-cd /data/wiut_hackathon
-sed -i 's#DEMO_URL_PLACEHOLDER#https://<YOUR_HF_USERNAME>-destroyerrrrs-traffic-events.hf.space#' docs/index.html
-git commit -am "website: demo URL" && git push origin main
+git push origin main
 ```
 
 ## 5. Tag the submission
@@ -50,5 +37,4 @@ git commit -am "website: demo URL" && git push origin main
 git tag -a submission -m "Elimination submission" && git push origin submission
 ```
 
-Submit: repository link `https://github.com/Winner-121/Destroyerrrrs` (tag `submission`) and
-website link `https://winner-121.github.io/Destroyerrrrs/`.
+Submit: repository link `https://github.com/Winner-121/Destroyerrrrs` (tag `submission`), website `https://winner-121.github.io/Destroyerrrrs/`, live demo `https://amir-kuldashev--destroyerrrrs-traffic-events-web.modal.run` (deployed with `modal deploy demo/modal_app.py`).

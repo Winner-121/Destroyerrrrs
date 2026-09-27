@@ -8,7 +8,9 @@ sys.path.insert(0, str(ROOT))
 os.environ.setdefault("YOLO_CONFIG_DIR", "/tmp/Ultralytics")
 from src.pipeline import detect_events as _detect
 
-MAX_SEC = 125
+MAX_SEC = int(os.environ.get("DEMO_MAX_SEC", "125"))
+STRIDE = int(os.environ.get("DEMO_STRIDE", "3"))
+IMGSZ = int(os.environ.get("DEMO_IMGSZ", "1280"))
 COL = {"red_light": (255, 77, 77), "stop_line": (255, 159, 67), "stopped_vehicle": (255, 212, 59), "jaywalking": (76, 201, 240),
        "failure_to_yield": (243, 104, 224), "wrong_way": (177, 151, 252), "solid_line_crossing": (81, 207, 102), "congestion": (255, 135, 135)}
 
@@ -57,9 +59,9 @@ def run(video, progress=gr.Progress()):
     if video is None: return "Upload an .mp4 first.", None, None, None
     fps, n, w, h = probe(video); dur = n / fps
     if dur > MAX_SEC: return f"Video is {dur:.0f} s; the demo accepts up to {MAX_SEC} s.", None, None, None
-    progress(0.05, desc="Detecting and tracking (CPU, this takes a few minutes)…")
+    progress(0.05, desc="Detecting and tracking…")
     t0 = time.perf_counter(); log = []
-    events = _detect(video, stride=5, imgsz=960, log=lambda m: log.append(m))
+    events = _detect(video, stride=STRIDE, imgsz=IMGSZ, log=lambda m: log.append(m))
     progress(0.75, desc="Rendering preview…")
     out = os.path.join(tempfile.mkdtemp(), "annotated.mp4"); vid = annotate(video, events, dur, out)
     progress(1.0)
@@ -68,7 +70,7 @@ def run(video, progress=gr.Progress()):
     return txt, rows, timeline_png(events, dur), vid
 
 with gr.Blocks(title="Destroyerrrrs — traffic event detection") as demo:
-    gr.Markdown("## Destroyerrrrs — traffic events from the fixed camera\nUpload an .mp4 from the same camera (≤ 2 min). CPU inference with a lighter setting (every 5th frame at 960 px); expect a few minutes for a 2-minute clip. [Repository](https://github.com/Winner-121/Destroyerrrrs) · [Team site](https://winner-121.github.io/Destroyerrrrs/)")
+    gr.Markdown("## Destroyerrrrs — traffic events from the fixed camera\nUpload an .mp4 from the same camera (≤ 2 min; raw 4K files are fine, up to 2 GB). The pipeline runs on 8 CPU cores with a lighter setting (every 6th frame at 960 px): a 2-minute clip takes roughly 4–6 minutes, plus ~30 s cold start if the demo was idle. Keep the tab open; progress is shown. [Repository](https://github.com/Winner-121/Destroyerrrrs) · [Team site](https://winner-121.github.io/Destroyerrrrs/)")
     with gr.Row():
         inp = gr.Video(label="Input video (.mp4, ≤ 2 min)", sources=["upload"])
         with gr.Column():
@@ -78,4 +80,5 @@ with gr.Blocks(title="Destroyerrrrs — traffic event detection") as demo:
         table = gr.Dataframe(headers=["start", "end", "class", "duration s"], label="Events")
         vid = gr.Video(label="Annotated preview")
     btn.click(run, inputs=inp, outputs=[status, table, tl, vid])
-demo.queue(max_size=8).launch()
+if __name__ == "__main__":
+    demo.queue(max_size=8).launch(server_name="0.0.0.0", server_port=int(os.environ.get("DEMO_PORT", "7860")), max_file_size="2gb")

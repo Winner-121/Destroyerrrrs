@@ -192,7 +192,7 @@
 
 <section id="demo">
   <h2>Live demo</h2>
-  <p>Upload an .mp4 from the same camera (up to 2 minutes, ≤ 200 MB). The demo runs the full pipeline on CPU with a lighter detector setting (stride 5, 960 px) so a 2-minute clip finishes in a few minutes; a progress bar shows the stage. It returns the event list, a timeline and an annotated preview.</p>
+  <p>Upload an .mp4 from the same camera (up to 2 minutes, ≤ 200 MB). The demo runs the full pipeline on Modal (8 CPU cores, free tier, scales to zero) with a lighter detector setting (every 6th frame at 960 px), so a 2-minute clip finishes in roughly 4–6 minutes; a progress bar shows the stage. Raw 4K files up to 2 GB are accepted. It returns the event list, a timeline and an annotated preview.</p>
   <div id="demoBox" class="card"><p id="demoNote">The demo is hosted on Hugging Face Spaces: <a id="demoLink" href="#">open the demo in a new tab</a>.</p><iframe id="demoFrame" style="width:100%;height:760px;border:0;border-radius:8px;display:none" allow="clipboard-write"></iframe></div>
 </section>
 
@@ -237,7 +237,7 @@
 <footer><div style="max-width:1180px;margin:0 auto;padding:0 16px">Destroyerrrrs · WIUT Hackathon 2026 · Footage © the organizers; shown only in annotated, downscaled form.</div></footer>
 
 <script>
-const DEMO_URL = "DEMO_URL_PLACEHOLDER";
+const DEMO_URL = "https://amir-kuldashev--destroyerrrrs-traffic-events-web.modal.run";
 const CLASSES = ["red_light","stop_line","stopped_vehicle","jaywalking","failure_to_yield","wrong_way","solid_line_crossing","congestion"];
 const css = getComputedStyle(document.documentElement);
 const COL = Object.fromEntries(CLASSES.map(c => [c, css.getPropertyValue('--c-' + c).trim()]));
