@@ -1,0 +1,308 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Destroyerrrrs — Traffic event detection from a fixed road camera</title>
+<meta name="description" content="WIUT Hackathon 2026, CV track: YOLO11 + ByteTrack + scene rules that detect traffic events on a fixed camera in Tashkent.">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root{--bg:#0f1115;--card:#171a21;--line:#262b36;--fg:#e8eaf0;--mut:#9aa3b2;--acc:#4cc9f0;--ok:#7bd88f;--warn:#f6c343;--bad:#ff6b6b;
+        --c-red_light:#ff4d4d;--c-stop_line:#ff9f43;--c-stopped_vehicle:#ffd43b;--c-jaywalking:#4cc9f0;--c-failure_to_yield:#f368e0;--c-wrong_way:#b197fc;--c-solid_line_crossing:#51cf66;--c-congestion:#ff8787;}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.55 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+  a{color:var(--acc);text-decoration:none} a:hover{text-decoration:underline}
+  header{position:sticky;top:0;z-index:5;background:rgba(15,17,21,.92);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+  nav{max-width:1180px;margin:0 auto;padding:10px 16px;display:flex;gap:14px;flex-wrap:wrap;align-items:center}
+  nav b{margin-right:auto;font-size:17px} nav a{color:var(--mut);font-size:14px} nav a:hover{color:var(--fg)}
+  main{max-width:1180px;margin:0 auto;padding:16px}
+  section{margin:40px 0}
+  h1{font-size:34px;line-height:1.15;margin:20px 0 8px} h2{font-size:24px;margin:0 0 14px;padding-top:8px;border-top:1px solid var(--line)} h3{font-size:17px;margin:18px 0 8px;color:var(--fg)}
+  .lead{color:var(--mut);font-size:17px;max-width:820px}
+  .grid{display:grid;gap:14px} .g2{grid-template-columns:repeat(auto-fit,minmax(300px,1fr))} .g3{grid-template-columns:repeat(auto-fit,minmax(240px,1fr))} .g4{grid-template-columns:repeat(auto-fit,minmax(180px,1fr))}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px}
+  .card h3{margin-top:0}
+  .stat{font-size:26px;font-weight:600} .stat small{display:block;font-size:12px;color:var(--mut);font-weight:400}
+  table{width:100%;border-collapse:collapse;font-size:14px} th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:top} th{color:var(--mut);font-weight:500}
+  .tbl{overflow-x:auto}
+  img{max-width:100%;border-radius:8px;display:block}
+  .cap{color:var(--mut);font-size:13px;margin-top:6px}
+  .chip{display:inline-block;padding:1px 8px;border-radius:12px;font-size:12px;color:#000;font-weight:600}
+  .btn{display:inline-block;background:var(--acc);color:#000;font-weight:600;padding:9px 14px;border-radius:8px;margin:4px 6px 4px 0} .btn.sec{background:#2a2f3a;color:var(--fg)}
+  .pipe{display:flex;gap:8px;flex-wrap:wrap;align-items:stretch}
+  .pipe .step{flex:1 1 150px;background:#11141a;border:1px solid var(--line);border-radius:8px;padding:10px;font-size:13px}
+  .pipe .step b{display:block;font-size:14px;margin-bottom:4px} .pipe .step.learn{border-color:#3b82f6} .pipe .step.rule{border-color:#22c55e}
+  .arrow{align-self:center;color:var(--mut);font-size:20px}
+  video{width:100%;border-radius:8px;background:#000}
+  .timeline{position:relative;height:58px;background:#11141a;border:1px solid var(--line);border-radius:8px;margin:8px 0;overflow:hidden;cursor:pointer}
+  .timeline .ev{position:absolute;height:16px;border-radius:3px;opacity:.9} .timeline .ev:hover{outline:2px solid #fff}
+  .timeline .row1{top:8px} .timeline .row2{top:32px}
+  .timeline .cur{position:absolute;top:0;width:2px;height:100%;background:#fff;pointer-events:none}
+  .legend{display:flex;gap:8px;flex-wrap:wrap;font-size:12px;color:var(--mut);margin:6px 0}
+  .legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:middle}
+  .evlist{max-height:240px;overflow:auto;font-size:13px} .evlist div{padding:3px 6px;border-bottom:1px solid var(--line);cursor:pointer} .evlist div:hover{background:#1f2430}
+  .tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px} .tabs button{background:#2a2f3a;color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:6px 12px;cursor:pointer} .tabs button.on{background:var(--acc);color:#000;font-weight:600}
+  .ok{color:var(--ok)} .warn{color:var(--warn)} .bad{color:var(--bad)}
+  canvas{max-height:300px}
+  footer{color:var(--mut);font-size:13px;padding:30px 0;border-top:1px solid var(--line);margin-top:40px}
+  @media (max-width:600px){h1{font-size:26px} .stat{font-size:22px}}
+</style>
+</head>
+<body>
+<header><nav>
+  <b>Destroyerrrrs</b>
+  <a href="#team">Team</a><a href="#approach">Approach</a><a href="#eda">EDA</a><a href="#results">Results</a><a href="#dashboard">Dashboard</a><a href="#demo">Live demo</a><a href="#report">Report</a><a href="#links">Links</a>
+</nav></header>
+<main>
+
+<section id="top">
+  <div style="color:var(--mut);font-size:13px">WIUT Hackathon 2026 · Computer Vision track · Elimination task</div>
+  <h1>Traffic events from a fixed road camera, as time segments</h1>
+  <p class="lead">A YOLO11 detector and ByteTrack tracker turn the footage into trajectories. A hand-drawn scene layout, re-aligned per video, and a pixel-level traffic-signal reader turn those trajectories into eight classes of traffic events with start and end times. Everything runs offline at 0.64× real time on a laptop GPU.</p>
+  <a class="btn" href="#demo">Try the live demo</a>
+  <a class="btn sec" href="https://github.com/Winner-121/Destroyerrrrs">Repository</a>
+  <a class="btn sec" href="https://github.com/Winner-121/Destroyerrrrs/blob/main/predictions_samples.json">predictions_samples.json</a>
+  <div class="grid g4" style="margin-top:18px">
+    <div class="card"><div class="stat">8<small>event classes predicted</small></div></div>
+    <div class="card"><div class="stat">0.64×<small>wall-clock / video duration (budget 3×)</small></div></div>
+    <div class="card"><div class="stat">18 min<small>of 4K sample footage, labelled by the team</small></div></div>
+    <div class="card"><div class="stat">0.39<small>Score A on our own labels (macro F1 over 3 tIoU)</small></div></div>
+  </div>
+</section>
+
+<section id="team">
+  <h2>Team</h2>
+  <div class="grid g3">
+    <div class="card"><h3>Majidov Jahongir <span class="chip" style="background:var(--warn)">captain</span></h3><p>Pipeline integration, labelling of the sample videos, evaluation runs, submission packaging.</p><a href="https://github.com/Winner-121">github.com/Winner-121</a></div>
+    <div class="card"><h3>Amir Kuldashev</h3><p>Detection and tracking, scene layout and per-video alignment, rule engine, repository and reproducibility.</p><a href="https://github.com/amir-kuldashev">github.com/amir-kuldashev</a></div>
+    <div class="card"><h3>Kamillov Muzaffarali</h3><p>Labelling and candidate review, exploratory analysis, website and live demo.</p><a href="https://github.com/kamilovmuzaffarali">github.com/kamilovmuzaffarali</a></div>
+  </div>
+  <p class="cap">Contributions were shared evenly. Every member labelled sample videos with our own labelling tool and reviewed the detector's candidate events.</p>
+</section>
+
+<section id="approach">
+  <h2>Problem and approach</h2>
+  <p>Given one .mp4 from a fixed CCTV camera over a signalised intersection in Tashkent, return every traffic event as <code>[start_sec, end_sec, label]</code>. Events are matched to the organizers' annotations by temporal IoU at 0.3, 0.5 and 0.7, so boundaries matter as much as detection. No labels are provided; we labelled the four sample videos ourselves.</p>
+  <h3>Pipeline</h3>
+  <div class="pipe">
+    <div class="step"><b>Decode</b>4K 30 fps → every 3rd frame, resized to 1280 px. Part A only touches ~10 frames/s.</div><div class="arrow">→</div>
+    <div class="step learn"><b>Detect (learned)</b>YOLO11m, COCO weights, no fine-tuning. Person, bicycle, car, motorcycle, bus, truck.</div><div class="arrow">→</div>
+    <div class="step learn"><b>Track (learned)</b>ByteTrack → trajectories with stable ids; ground point = bottom-centre of the box.</div><div class="arrow">→</div>
+    <div class="step rule"><b>Align scene (rule)</b>Median background → SIFT homography to the reference frame the layout was drawn on. The "fixed" camera drifts 1–2 % zoom, ~1° roll between recordings.</div><div class="arrow">→</div>
+    <div class="step rule"><b>Read signal (rule)</b>Lamp-pixel colour scores of the two visible signal heads → red / green / amber per sample, adaptive thresholds.</div><div class="arrow">→</div>
+    <div class="step rule"><b>Rules → segments</b>Per-class predicates on trajectories × layout × signal; merge gaps ≤ 1 s, drop blips, union same-class overlaps.</div>
+  </div>
+  <p class="cap">Blue = learned components, green = hand-written rules. Nothing is trained on the sample videos; only the layout polygons and a traffic-flow field were derived from them.</p>
+  <div class="grid g2">
+    <div class="card"><img src="assets/layout_overlay.jpg" alt="scene layout"><div class="cap">Scene layout drawn once on a clean median background: carriageway, two zebras and the side-street crossing, islands, stop line (red), near-carriageway approach (orange), intersection box (green), parked-car zone (grey), and the lamp positions of both signal heads.</div></div>
+    <div class="card"><img src="assets/flow_field.jpg" alt="flow field"><div class="cap">Traffic-flow field learned from all sample trajectories: mean vehicle heading per 40-px cell (hue = direction). Used for <code>wrong_way</code> and to require that a vehicle crosses a zebra with the flow rather than driving along it.</div></div>
+  </div>
+  <h3>What each class means to the detector</h3>
+  <div class="tbl"><table>
+    <tr><th>class</th><th>rule</th></tr>
+    <tr><td><span class="chip" style="background:var(--c-red_light)">red_light</span></td><td>Came down the near carriageway with the flow for ≥ 2 s, crosses the stop line while moving, signal red ≥ 6 s before and ≥ 3 s after (the near-pole head has no amber phase and goes red 6 s early; a whole queue starting 1–2 s before green is not a run), clears the zebra within 4 s.</td></tr>
+    <tr><td><span class="chip" style="background:var(--c-stop_line)">stop_line</span></td><td>Stationary with the front 8–60 px past the stop bar while red, ≥ 3 s. Ends when the signal turns green.</td></tr>
+    <tr><td><span class="chip" style="background:var(--c-stopped_vehicle)">stopped_vehicle</span></td><td>Stationary ≥ 10 s inside the intersection or ≥ 60 s elsewhere; signal queues excluded (upstream of the stop line while not green, or within 20 s of green); re-identified parked vehicles joined across track ids.</td></tr>
+    <tr><td><span class="chip" style="background:var(--c-jaywalking)">jaywalking</span></td><td>Pedestrian ≥ 14 px inside the carriageway, off any crossing / island / parked zone, walking ≥ 40 px, ≥ 2 s. People inside a vehicle box (riders, passengers) ignored.</td></tr>
+    <tr><td><span class="chip" style="background:var(--c-failure_to_yield)">failure_to_yield</span></td><td>Vehicle crossing the main zebra (with the flow, not along it) while a walking pedestrian is ahead of its front and inside, or about to enter, its lane corridor. This is the team's reading: the car moves before the pedestrian has cleared its path.</td></tr>
+    <tr><td><span class="chip" style="background:var(--c-wrong_way)">wrong_way</span></td><td>Heading opposite the learned flow (cos &lt; −0.9) in a coherent cell for ≥ 2 s, outside the intersection box.</td></tr>
+    <tr><td><span class="chip" style="background:var(--c-solid_line_crossing)">solid_line_crossing</span></td><td>Ground point drifts monotonically from one side of a solid lane divider to the other; segment from the start of the drift to 1.5 s after settling in the new lane. Dividers found by a Hough transform on the reference background.</td></tr>
+    <tr><td><span class="chip" style="background:var(--c-congestion)">congestion</span></td><td>≥ 4 distinct vehicles stationary inside the intersection box at once for ≥ 5 s, extended while ≥ 2 remain (queue stops moving … queue clears).</td></tr>
+  </table></div>
+  <p class="cap">Tried and dropped after review against our labels: <code>illegal_turn</code> (island-mounting footprint test, 0 of 11 confirmed), <code>illegal_u_turn</code> (heading-reversal test fires on tracker noise). Not attempted: accident, near_miss, road_obstacle, fire_smoke. Part B (accident anticipation) is left as the default estimator.</p>
+</section>
+
+<section id="eda">
+  <h2>EDA of the sample videos</h2>
+  <div class="tbl"><table id="edaTable"><tr><th>video</th><th>duration</th><th>resolution / fps</th><th>mean brightness</th><th>unique tracks</th><th>lighting</th></tr></table></div>
+  <div class="grid g2" style="margin-top:14px">
+    <div class="card"><h3>Brightness over time</h3><canvas id="chBright"></canvas><div class="cap">Frame mean intensity every 2 s. Two daytime clips, one early-evening clip, one dusk clip with headlights on. Detection quality had to hold across this range, which is why we kept the medium detector at 1280 px.</div></div>
+    <div class="card"><h3>Road users present, per class</h3><div class="tabs" id="edaTabs"></div><canvas id="chCounts"></canvas><div class="cap">Distinct tracked objects per 10-second window. Pedestrians outnumber vehicles in every clip; the sawtooth in cars follows the ~77-second signal cycle.</div></div>
+  </div>
+  <div class="grid g2" style="margin-top:14px">
+    <div class="card"><img src="assets/C3896_motion_heatmap.jpg" alt="motion heatmap"><div class="cap">Motion heatmap (frame-difference energy, C3896): movement concentrates on the two carriageways and the crossings and is zero on islands and sidewalks. This gave us the drivable area before any polygon was drawn.</div></div>
+    <div class="card"><img src="assets/C3905_trajectories.jpg" alt="trajectories"><div class="cap">All trajectories of the dusk clip. Vehicles coloured by heading, pedestrians orange. The two carriageways, the side-street turn and the crossing paths are visible without any labels.</div></div>
+    <div class="card"><img src="assets/light_strip_main.jpg" alt="signal strip"><div class="cap">The far-pole signal head sampled every 2 s. Red and green are unambiguous even at dusk. The green lamp renders cyan, so we score it as mean(G,B) − R. Finding that the near-pole head skips amber and goes red 6 s earlier removed 8 of 9 false red-light detections.</div></div>
+    <div class="card"><img src="assets/align_C3902.jpg" alt="alignment"><div class="cap">The camera is not perfectly fixed: this clip is 1.6 % zoomed, rolled 0.9° and shifted up to 40 px against the reference (grey = reference polygons, colour = aligned). Without per-video alignment the stop line and zebra polygons land in the wrong place.</div></div>
+    <div class="card"><img src="assets/queue_front_heat.jpg" alt="queue front"><div class="cap">Where vehicles actually stop on red (heat) versus the painted stop bar (white). The front of the queue sits on the bar, which calibrated the <code>stop_line</code> distance thresholds.</div></div>
+    <div class="card"><h3>Findings that shaped the solution</h3><ul>
+      <li>Signal state is readable from pixels → three classes (red_light, stop_line, queue exclusion for stopped_vehicle) become rules instead of models.</li>
+      <li>Amber-running is common at this intersection (cars cross 2–5 s into red); genuine red-light runs are rare (1 in 18 min).</li>
+      <li>The far-kerb lane at the bus stop is used for parking for minutes at a time; the team decided these are not <code>stopped_vehicle</code> events.</li>
+      <li>Decoding 4K at 140 Mbit/s costs ~0.25× real time on its own; the harness decodes every frame for Part B regardless, so Part A samples every 3rd frame.</li>
+      <li>Solid-line crossings while joining the queue on red are frequent (16 labelled in 18 min) and were not in our first class list.</li>
+    </ul></div>
+  </div>
+</section>
+
+<section id="results">
+  <h2>Results on the sample videos</h2>
+  <p>Every sample video annotated with our tooling: tracked boxes, active events, and a timeline bar. Click an event in the timeline or the list to jump the video to it. Blue rows are our detections, the thinner grey rows underneath are the team's labels.</p>
+  <div class="tabs" id="vidTabs"></div>
+  <div class="grid" style="grid-template-columns:2fr 1fr">
+    <div>
+      <video id="player" controls preload="metadata" playsinline></video>
+      <div class="timeline" id="tl"></div>
+      <div class="legend" id="legend"></div>
+    </div>
+    <div class="card"><h3 id="evTitle">Events</h3><div class="evlist" id="evlist"></div></div>
+  </div>
+  <h3>Per-class score against our labels</h3>
+  <p class="cap">Official <code>evaluate.py</code>, 4 videos, 4K originals, 100 predicted events vs 102 team labels (same-class overlapping labels merged, as the organizers do for simultaneous events). Label boundaries are approximate, which mostly shows at tIoU 0.7.</p>
+  <div class="tbl"><table>
+    <tr><th>class</th><th>labels</th><th>TP / FP / FN @0.5</th><th>F1@0.3</th><th>F1@0.5</th><th>F1@0.7</th></tr>
+    <tr><td>red_light</td><td>1</td><td>1 / 0 / 0</td><td class="ok">1.00</td><td class="ok">1.00</td><td class="ok">1.00</td></tr>
+    <tr><td>stopped_vehicle</td><td>6</td><td>5 / 1 / 1</td><td class="ok">0.83</td><td class="ok">0.83</td><td class="ok">0.67</td></tr>
+    <tr><td>stop_line</td><td>4</td><td>4 / 3 / 0</td><td class="ok">0.73</td><td class="ok">0.73</td><td class="ok">0.73</td></tr>
+    <tr><td>congestion</td><td>2</td><td>1 / 1 / 1</td><td class="ok">1.00</td><td class="warn">0.50</td><td class="bad">0.00</td></tr>
+    <tr><td>jaywalking</td><td>33</td><td>14 / 24 / 19</td><td class="warn">0.56</td><td class="warn">0.39</td><td class="warn">0.37</td></tr>
+    <tr><td>solid_line_crossing</td><td>22</td><td>8 / 6 / 14</td><td class="warn">0.50</td><td class="warn">0.44</td><td class="bad">0.28</td></tr>
+    <tr><td>failure_to_yield</td><td>11</td><td>1 / 31 / 10</td><td class="bad">0.05</td><td class="bad">0.05</td><td class="bad">0.05</td></tr>
+    <tr><td>wrong_way, illegal_turn, illegal_u_turn</td><td>1 each</td><td>0 / 0 / 1</td><td class="bad">0</td><td class="bad">0</td><td class="bad">0</td></tr>
+    <tr><th>Score A (macro, 10 classes)</th><th></th><th></th><th colspan="3">0.39</th></tr>
+  </table></div>
+  <h3>Honest failure cases</h3>
+  <div class="grid g3">
+    <div class="card"><b class="bad">failure_to_yield</b><p>Our labellers rejected 48 detector candidates under two different rule versions and confirmed events whose nearest pedestrian ranged from 16 to 500 px away. The class is not consistently labelled, by us or (we suspect) by anyone, and our score on it is near zero.</p></div>
+    <div class="card"><b class="warn">Boundaries</b><p>Jaywalking and solid-line segments are detected but start ~1 s early or end ~1 s late relative to the labels. At tIoU 0.7 that halves the F1. The labels themselves are approximate.</p></div>
+    <div class="card"><b class="warn">Perspective ambiguity</b><p>A car passing beside a traffic island and a car mounting it look the same in 2D from this angle. Our <code>illegal_turn</code> rule fired 11 times, all rejected, and was dropped.</p></div>
+    <div class="card"><b class="warn">Signal reading</b><p>The far-pole head washes out in direct sun; only the near-pole head is reliable by day. Both are needed for dusk. A test video with a different exposure could break the adaptive thresholds.</p></div>
+    <div class="card"><b class="warn">Re-identification</b><p>ByteTrack loses a parked vehicle behind a passing bus and returns it with a new id. We join stationary segments by position, which fixed most long stops but can merge two different vehicles parked in the same spot.</p></div>
+    <div class="card"><b class="bad">Classes we never predict</b><p>accident, near_miss, road_obstacle, fire_smoke, illegal_turn, illegal_u_turn. Each one present in the hidden set is a zero in the macro average.</p></div>
+  </div>
+</section>
+
+<section id="dashboard">
+  <h2>Operator dashboard</h2>
+  <div class="grid g2">
+    <div class="card"><h3>Events per class, all sample videos</h3><canvas id="chClass"></canvas></div>
+    <div class="card"><h3>Events per minute of footage</h3><canvas id="chMinute"></canvas><div class="cap">Stacked by class, per video minute. Peaks line up with the red phase: stop-line stops and solid-line lane changes happen while the queue forms; jaywalking peaks when the crossing signal is against pedestrians.</div></div>
+  </div>
+  <h3>Ablations</h3>
+  <div class="tbl"><table>
+    <tr><th>variant</th><th>effect (dev labels)</th><th>runtime</th></tr>
+    <tr><td>Frame stride 3 → proxies at 720p instead of 4K originals</td><td>Score A 0.43 vs 0.39: near-threshold detections differ, shifting some jaywalking / solid-line boundaries</td><td>0.21× vs 0.64×</td></tr>
+    <tr><td>FP16 → FP32 inference</td><td>Same events, boundaries move 0.1–2 s on 4 jaywalking segments</td><td>0.54× vs 0.38× (Part A only)</td></tr>
+    <tr><td>Signal from near-pole head only (no amber offset)</td><td>red_light: 9 detections, 8 false. With the 6 s offset: 1 detection, 1 true</td><td>—</td></tr>
+    <tr><td>No per-video alignment</td><td>Stop line lands 20–40 px off on 2 of 4 clips; stop_line and red_light rules fail on them</td><td>−2 s / video</td></tr>
+    <tr><td>Literal failure_to_yield (any pedestrian on the zebra)</td><td>40 detections, 35 rejected by the team → team definition adopted</td><td>—</td></tr>
+    <tr><td>Newer torch / ultralytics on a clean machine</td><td>1 of 17 short events dropped on the test clip; versions pinned</td><td>—</td></tr>
+  </table></div>
+</section>
+
+<section id="demo">
+  <h2>Live demo</h2>
+  <p>Upload an .mp4 from the same camera (up to 2 minutes, ≤ 200 MB). The demo runs the full pipeline on CPU with a lighter detector setting (stride 5, 960 px) so a 2-minute clip finishes in a few minutes; a progress bar shows the stage. It returns the event list, a timeline and an annotated preview.</p>
+  <div id="demoBox" class="card"><p id="demoNote">The demo is hosted on Hugging Face Spaces: <a id="demoLink" href="#">open the demo in a new tab</a>.</p><iframe id="demoFrame" style="width:100%;height:760px;border:0;border-radius:8px;display:none" allow="clipboard-write"></iframe></div>
+</section>
+
+<section id="report">
+  <h2>Report</h2>
+  <h3>What we built</h3>
+  <p>A detector-tracker-rules system. The only learned parts are a COCO-pretrained YOLO11m and ByteTrack; everything specific to this camera is a 1280×720 layout drawn once on a clean background and re-aligned per video with a homography, a traffic-flow field learned from the sample trajectories, and a pixel reader for the two visible signal heads. Eight classes are produced by per-class predicates on trajectories, followed by segment post-processing (gap filling ≤ 1 s, blip removal, same-class union). The whole thing runs in 0.64× real time on an RTX 5060 laptop GPU including the harness's own full-frame decode for Part B, against a 3× budget.</p>
+  <h3>What worked</h3>
+  <ul>
+    <li>Reading the traffic signal from lamp pixels. It is robust in daylight and dusk once the green lamp is scored as cyan and both heads are combined, and it converts three classes into simple rules.</li>
+    <li>Per-video alignment. The camera moves a little between recordings; a SIFT homography from the median background fixes the layout in seconds and will matter on the hidden videos too.</li>
+    <li>Building our own labelling tool with a candidate-review loop. The team labelled 18 minutes of 4K footage, then confirmed or rejected every detector event with one click. Rejections were as useful as labels: they found the amber-phase bug in red_light and killed the illegal_turn rule.</li>
+    <li>Stationary-vehicle logic: signal-aware queue exclusion, a 10 s threshold inside the intersection versus 60 s elsewhere, and spatial joining of re-identified tracks give 0.83 F1 on stopped_vehicle.</li>
+  </ul>
+  <h3>What did not</h3>
+  <ul>
+    <li>failure_to_yield. The organizers' definition is literal (a vehicle through the crossing while a pedestrian is on it) and fires 40 times in 18 minutes here; our labellers rejected most of those and could not agree on a stricter reading. We shipped the team's reading and expect a low score on this class either way.</li>
+    <li>Boundary precision. Our segments are systematically ~1 s longer than the labels for jaywalking and lane changes. Half the gap between F1@0.3 and F1@0.7 is boundary style, not detection.</li>
+    <li>Island-mounting and U-turn rules. Both produce only false alarms from this viewpoint and were dropped.</li>
+    <li>We did not attempt accident / near-miss detection or Part B. With no such events in the samples we had no way to validate a rule or a classifier, and chose to spend the time on classes we could measure.</li>
+  </ul>
+  <h3>What we would do next</h3>
+  <ul>
+    <li>Train a small clip classifier for accident / near_miss on public crash datasets (DoTA, CCD) and gate it with a time-to-collision score from the tracks; reuse the same TTC as the Part B risk curve.</li>
+    <li>Calibrate boundaries per class against a larger, cleaner label set, with two annotators and a consensus step.</li>
+    <li>Fine-tune the detector on a few hundred frames from this camera, mainly for pedestrians at dusk and riders on scooters.</li>
+    <li>Replace the hand-drawn layout with lane polygons fitted automatically from the flow field, so a new camera needs no manual work.</li>
+  </ul>
+</section>
+
+<section id="links">
+  <h2>Links</h2>
+  <ul>
+    <li>Repository: <a href="https://github.com/Winner-121/Destroyerrrrs">github.com/Winner-121/Destroyerrrrs</a></li>
+    <li>Weights: YOLO11m (COCO, AGPL-3.0) fetched by <a href="https://github.com/Winner-121/Destroyerrrrs/blob/main/weights/download.sh">weights/download.sh</a></li>
+    <li>Predictions on the samples: <a href="https://github.com/Winner-121/Destroyerrrrs/blob/main/predictions_samples.json">predictions_samples.json</a></li>
+    <li>Team labels: <a href="https://github.com/Winner-121/Destroyerrrrs/blob/main/labels/my_labels.json">labels/my_labels.json</a></li>
+    <li>Live demo: <a id="demoLink2" href="#">Hugging Face Space</a></li>
+  </ul>
+</section>
+</main>
+<footer><div style="max-width:1180px;margin:0 auto;padding:0 16px">Destroyerrrrs · WIUT Hackathon 2026 · Footage © the organizers; shown only in annotated, downscaled form.</div></footer>
+
+<script>
+const DEMO_URL = "DEMO_URL_PLACEHOLDER";
+const CLASSES = ["red_light","stop_line","stopped_vehicle","jaywalking","failure_to_yield","wrong_way","solid_line_crossing","congestion"];
+const css = getComputedStyle(document.documentElement);
+const COL = Object.fromEntries(CLASSES.map(c => [c, css.getPropertyValue('--c-' + c).trim()]));
+const VIDEOS = ["C3896","C3897","C3902","C3905"];
+const NOTE = {C3896:"day, 5:40", C3897:"day, 5:18", C3902:"evening, 5:18", C3905:"dusk, 2:08"};
+const fmt = t => `${Math.floor(t/60)}:${(t%60).toFixed(1).padStart(4,'0')}`;
+Chart.defaults.color = '#9aa3b2'; Chart.defaults.borderColor = '#262b36';
+
+fetch('assets/data.json').then(r => r.json()).then(D => {
+  // EDA table
+  const tb = document.getElementById('edaTable');
+  for (const v of VIDEOS) { const d = D[v]; const light = d.mean_brightness > 85 ? 'daylight' : d.mean_brightness > 55 ? 'early evening' : 'dusk, headlights on';
+    tb.insertAdjacentHTML('beforeend', `<tr><td>${v}</td><td>${fmt(d.duration)}</td><td>3840×2160 / ${d.fps}</td><td>${d.mean_brightness}</td><td>${d.unique_tracks}</td><td>${light}</td></tr>`); }
+  // brightness chart
+  new Chart(document.getElementById('chBright'), {type:'line', data:{datasets: VIDEOS.map((v,i)=>({label:v, data:D[v].brightness.map(([t,b])=>({x:t,y:b})), borderColor:['#4cc9f0','#7bd88f','#f6c343','#f368e0'][i], borderWidth:1.5, pointRadius:0}))},
+    options:{parsing:false, scales:{x:{type:'linear',title:{display:true,text:'s'}}, y:{title:{display:true,text:'mean intensity'}}}, plugins:{legend:{position:'bottom'}}}});
+  // counts chart with tabs
+  let chCounts = null;
+  const tabs = document.getElementById('edaTabs');
+  function showCounts(v) {
+    tabs.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.v === v));
+    const c = D[v].counts_per_10s; const labels = c.person.map((_, i) => i * 10);
+    const colors = {person:'#4cc9f0', car:'#f6c343', bus:'#7bd88f', truck:'#ff8787', motorcycle:'#b197fc', bicycle:'#f368e0'};
+    const ds = Object.keys(c).filter(k => c[k].some(x => x > 0)).map(k => ({label:k, data:c[k], borderColor:colors[k], backgroundColor:colors[k], borderWidth:1.5, pointRadius:0, tension:.2}));
+    if (chCounts) chCounts.destroy();
+    chCounts = new Chart(document.getElementById('chCounts'), {type:'line', data:{labels, datasets:ds}, options:{scales:{x:{title:{display:true,text:'s'}}, y:{title:{display:true,text:'distinct objects / 10 s'}}}, plugins:{legend:{position:'bottom'}}}});
+  }
+  for (const v of VIDEOS) tabs.insertAdjacentHTML('beforeend', `<button data-v="${v}">${v} <small>(${NOTE[v]})</small></button>`);
+  tabs.addEventListener('click', e => { const b = e.target.closest('button'); if (b) showCounts(b.dataset.v); });
+  showCounts('C3896');
+
+  // results player
+  const player = document.getElementById('player'), tl = document.getElementById('tl'), evlist = document.getElementById('evlist'), vt = document.getElementById('vidTabs');
+  let cur = null;
+  document.getElementById('legend').innerHTML = CLASSES.map(c => `<span><i style="background:${COL[c]}"></i>${c}</span>`).join('') + '<span><i style="background:#555"></i>team label (lower row)</span>';
+  function show(v) {
+    cur = v; vt.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.v === v));
+    player.src = `assets/video/${v}_annot.mp4`; player.load();
+    const d = D[v], dur = d.duration;
+    tl.innerHTML = d.events.map(([s,e,l]) => `<div class="ev row1" data-s="${s}" title="${l} ${fmt(s)}–${fmt(e)}" style="left:${s/dur*100}%;width:${Math.max(.25,(e-s)/dur*100)}%;background:${COL[l]}"></div>`).join('')
+      + d.labels.map(([s,e,l]) => `<div class="ev row2" data-s="${s}" title="label: ${l} ${fmt(s)}–${fmt(e)}" style="left:${s/dur*100}%;width:${Math.max(.25,(e-s)/dur*100)}%;background:${COL[l]||'#777'};opacity:.45;height:10px"></div>`).join('')
+      + '<div class="cur" id="tlcur"></div>';
+    document.getElementById('evTitle').textContent = `${d.events.length} detected events · ${v}`;
+    evlist.innerHTML = d.events.map(([s,e,l]) => `<div data-s="${s}"><span class="chip" style="background:${COL[l]}">${l}</span> ${fmt(s)} – ${fmt(e)} <span style="color:var(--mut)">(${(e-s).toFixed(1)} s)</span></div>`).join('');
+  }
+  for (const v of VIDEOS) vt.insertAdjacentHTML('beforeend', `<button data-v="${v}">${v} <small>(${NOTE[v]})</small></button>`);
+  vt.addEventListener('click', e => { const b = e.target.closest('button'); if (b) show(b.dataset.v); });
+  const seek = t => { player.currentTime = Math.max(0, t - 1); player.play().catch(()=>{}); };
+  tl.addEventListener('click', e => { const ev = e.target.closest('.ev'); if (ev) return seek(+ev.dataset.s); const r = tl.getBoundingClientRect(); seek((e.clientX - r.left) / r.width * D[cur].duration + 1); });
+  evlist.addEventListener('click', e => { const r = e.target.closest('[data-s]'); if (r) seek(+r.dataset.s); });
+  player.addEventListener('timeupdate', () => { const c = document.getElementById('tlcur'); if (c && cur) c.style.left = (player.currentTime / D[cur].duration * 100) + '%'; });
+  show('C3905');
+
+  // dashboard
+  const perClass = Object.fromEntries(CLASSES.map(c => [c, VIDEOS.map(v => D[v].events.filter(e => e[2] === c).length)]));
+  new Chart(document.getElementById('chClass'), {type:'bar', data:{labels: VIDEOS, datasets: CLASSES.map(c => ({label:c, data:perClass[c], backgroundColor:COL[c]}))}, options:{scales:{x:{stacked:true}, y:{stacked:true, title:{display:true,text:'events'}}}, plugins:{legend:{position:'bottom'}}}});
+  const minutes = []; const perMin = {};
+  for (const v of VIDEOS) for (let m = 0; m < Math.ceil(D[v].duration / 60); m++) minutes.push(`${v} ${m}`);
+  for (const c of CLASSES) perMin[c] = minutes.map(() => 0);
+  let off = 0; for (const v of VIDEOS) { for (const [s,e,l] of D[v].events) perMin[l][off + Math.floor(s / 60)]++; off += Math.ceil(D[v].duration / 60); }
+  new Chart(document.getElementById('chMinute'), {type:'bar', data:{labels: minutes, datasets: CLASSES.map(c => ({label:c, data:perMin[c], backgroundColor:COL[c]}))}, options:{scales:{x:{stacked:true, ticks:{maxRotation:90, font:{size:10}}}, y:{stacked:true}}, plugins:{legend:{display:false}}}});
+});
+// demo embed
+if (DEMO_URL && !DEMO_URL.startsWith('DEMO_URL')) { for (const id of ['demoLink','demoLink2']) document.getElementById(id).href = DEMO_URL; const f = document.getElementById('demoFrame'); f.src = DEMO_URL; f.style.display = 'block'; }
+else { document.getElementById('demoNote').innerHTML = 'The live demo is being deployed; the link will appear here.'; document.getElementById('demoLink2').textContent = 'being deployed'; }
+</script>
+</body>
+</html>
