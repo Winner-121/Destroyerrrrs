@@ -135,13 +135,16 @@ notebooks/               EDA (to come)
 * `tools/run_rules_proxy.py` — runs alignment + signal + rules on 720p proxies with cached tracks.
 * `tools/review_event.py` — renders a frame strip with boxes for one candidate event.
 
-## Team
+## Team — Destroyerrrrs
 
-| member | role | links |
+| member | role | GitHub |
 |---|---|---|
-| TBD | TBD | TBD |
-| TBD | TBD | TBD |
-| TBD | TBD | TBD |
+| Majidov Jahongir | captain — pipeline integration, labelling, evaluation | https://github.com/Winner-121 |
+| Amir Kuldashev | detection & tracking, scene layout, rules, repo | https://github.com/amir-kuldashev |
+| Kamillov Muzaffarali | labelling, EDA, website and demo | https://github.com/kamilovmuzaffarali |
+
+Contributions were shared evenly; each member labelled sample videos and reviewed the
+detector's candidates.
 
 ## What worked / what did not (running notes)
 
