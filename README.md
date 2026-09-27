@@ -124,8 +124,10 @@ weights/download.sh      fetches yolo11m.pt
 src/                     pipeline, alignment, scene, signal, rules, layout
 tools/                   dev tools: labelling web app, proxy-based rule runner, event reviewer
 labels/                  team labels of the sample videos (ground-truth format) + rough notes
+docs/                    team website (GitHub Pages)
+demo/                    live demo (Gradio app + Modal deployment)
 predictions_samples.json output of the harness on the 4 sample videos
-notebooks/               EDA (to come)
+notebooks/               eda.ipynb: EDA of the sample videos (runs from the clone)
 ```
 
 ### Dev tools
